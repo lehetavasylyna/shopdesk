@@ -1,0 +1,189 @@
+body {
+  margin: 0;
+  background: #ececec;
+  color: #222;
+  font: 14px Tahoma, Geneva, sans-serif;
+}
+
+a {
+  color: #1a4e8a;
+}
+
+h2 {
+  font-size: 18px;
+  font-weight: bold;
+  margin: 0 0 10px;
+}
+
+h3 {
+  font-size: 15px;
+  margin: 16px 0 8px;
+}
+
+.top {
+  background: #355070;
+  color: #fff;
+}
+
+.top-inner {
+  width: 960px;
+  margin: 0 auto;
+  padding: 10px 0 8px;
+}
+
+.brand {
+  color: #fff;
+  font-size: 18px;
+  text-decoration: none;
+}
+
+nav {
+  margin-top: 6px;
+}
+
+nav a {
+  color: #fff;
+  margin-right: 16px;
+}
+
+nav a.here {
+  text-decoration: underline;
+}
+
+.page {
+  width: 960px;
+  margin: 14px auto 28px;
+}
+
+.hint {
+  color: #555;
+  margin: 8px 0;
+}
+
+.flash {
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  background: #fff;
+}
+
+.flash.ok {
+  border-color: #8fbf8f;
+  background: #f3faf3;
+}
+
+.flash.err {
+  border-color: #d7a0a0;
+  background: #fff5f5;
+}
+
+.filters label {
+  display: inline-block;
+  margin-right: 12px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  margin-top: 8px;
+}
+
+th, td {
+  border: 1px solid #c8c8c8;
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: #e4eaf0;
+  font-weight: normal;
+}
+
+tr:nth-child(even) td {
+  background: #f7f7f7;
+}
+
+th.num, td.num {
+  width: 46px;
+}
+
+td.low, tr:nth-child(even) td.low {
+  background: #fff1c9;
+}
+
+.box {
+  background: #fff;
+  border: 1px solid #cfcfcf;
+  padding: 10px 12px 14px;
+  margin: 8px 0 12px;
+}
+
+label {
+  display: block;
+  margin: 8px 0;
+}
+
+input[type="text"],
+input[type="number"],
+select,
+textarea {
+  font: inherit;
+  padding: 3px 5px;
+  border: 1px solid #9a9a9a;
+  background: #fff;
+}
+
+textarea, .box input[type="text"] {
+  width: 420px;
+}
+
+.line {
+  margin-bottom: 6px;
+}
+
+.line select {
+  width: 460px;
+}
+
+.qty {
+  width: 70px;
+}
+
+button, a.button {
+  font: inherit;
+  background: #efefef;
+  color: #111;
+  border: 1px solid #8d8d8d;
+  padding: 4px 10px;
+  text-decoration: none;
+  display: inline-block;
+  cursor: pointer;
+}
+
+button.primary {
+  background: #2f6294;
+  color: #fff;
+  border-color: #244e77;
+}
+
+.status {
+  font-weight: bold;
+}
+
+.s-new { color: #333; }
+.s-confirmed { color: #1a5276; }
+.s-shipped { color: #7d6608; }
+.s-completed { color: #196f3d; }
+.s-cancelled { color: #922b21; }
+
+ul.log {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.foot {
+  color: #666;
+  font-size: 12px;
+  margin-top: 22px;
+}
