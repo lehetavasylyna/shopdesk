@@ -17,8 +17,13 @@ export default function Products() {
 
   return (
     <>
-      <h2>Products</h2>
-      <p><Link className="button" to="/products/new">New product</Link></p>
+      <div className="head">
+        <div>
+          <h2>Products</h2>
+          <p className="hint">Yellow means three pieces or fewer are left.</p>
+        </div>
+        <Link className="button primary" to="/products/new">New product</Link>
+      </div>
       {note ? <p className="flash ok">{note}</p> : null}
       {error ? <p className="flash err">{error}</p> : null}
       {products ? (
@@ -27,7 +32,7 @@ export default function Products() {
             <tr>
               <th>Name</th>
               <th>Category</th>
-              <th>Price</th>
+              <th className="money">Price</th>
               <th>Stock</th>
               <th></th>
             </tr>
@@ -35,7 +40,7 @@ export default function Products() {
               <tr key={product.id}>
                 <td>{product.name}</td>
                 <td>{product.category}</td>
-                <td>{money(product.price)}</td>
+                <td className="money">{money(product.price)}</td>
                 <td className={product.stock <= 3 ? "low" : undefined}>{product.stock}</td>
                 <td><Link to={"/products/" + product.id}>edit</Link></td>
               </tr>
@@ -43,7 +48,6 @@ export default function Products() {
           </tbody>
         </table>
       ) : null}
-      <p className="hint">Yellow means the stock is 3 or less.</p>
     </>
   );
 }

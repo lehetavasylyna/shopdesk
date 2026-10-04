@@ -19,21 +19,34 @@ export default function Summary() {
 
   return (
     <>
-      <h2>Summary</h2>
+      <div className="head">
+        <div>
+          <h2>Summary</h2>
+          <p className="hint">Cancelled orders are counted, but that money did not come in.</p>
+        </div>
+      </div>
       {error ? <p className="flash err">{error}</p> : null}
-      <p className="hint">Counts and sums for every status. Cancelled orders are listed, but they are not money that came in.</p>
+      <div className="stats">
+        {data.byStatus.map((row) => (
+          <div className="stat" key={row.status}>
+            <span className={"status s-" + row.status}>{row.status}</span>
+            <b>{row.count}</b>
+            <span className="quiet">{money(row.total)}</span>
+          </div>
+        ))}
+      </div>
       <table>
         <tbody>
           <tr>
             <th>Status</th>
             <th>Orders</th>
-            <th>Sum</th>
+            <th className="money">Sum</th>
           </tr>
           {data.byStatus.map((row) => (
             <tr key={row.status}>
               <td><span className={"status s-" + row.status}>{row.status}</span></td>
               <td>{row.count}</td>
-              <td>{money(row.total)}</td>
+              <td className="money">{money(row.total)}</td>
             </tr>
           ))}
         </tbody>
@@ -48,14 +61,14 @@ export default function Summary() {
             <th>Product</th>
             <th>Category</th>
             <th>Stock</th>
-            <th>Price</th>
+            <th className="money">Price</th>
           </tr>
           {data.lowStock.map((product) => (
             <tr key={product.id}>
               <td><Link to={"/products/" + product.id}>{product.name}</Link></td>
               <td>{product.category}</td>
               <td className="low">{product.stock}</td>
-              <td>{money(product.price)}</td>
+              <td className="money">{money(product.price)}</td>
             </tr>
           ))}
         </tbody>

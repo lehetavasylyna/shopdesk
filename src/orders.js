@@ -174,10 +174,18 @@ function changeStatus(db, orderId, newStatus, when) {
   run();
 }
 
-function listOrders(db, status, query) {
+const SORTS = {
+  newest: (a, b) => b.created_at.localeCompare(a.created_at) || b.id - a.id,
+  oldest: (a, b) => a.created_at.localeCompare(b.created_at) || a.id - b.id,
+  "total-desc": (a, b) => b.total - a.total || b.id - a.id,
+  "total-asc": (a, b) => a.total - b.total || a.id - b.id,
+};
+
+function listOrders(db, status, query, extra) {
+  const range = extra || {};
   let sql = `
     SELECT o.id, o.status, o.comment, o.total, o.created_at,
-           c.name AS customer_name, c.phone,
+           c.name AS customer_name, c.phone, c.city,
            (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id) AS positions
     FROM orders o
     JOIN customers c ON c.id = o.customer_id
@@ -192,12 +200,24 @@ function listOrders(db, status, query) {
   const needle = cleanQuery(query);
   if (needle) {
     // SQLite lower() does not handle every letter, so the short list is filtered here.
-    rows = rows.filter(
-      (row) =>
-        row.customer_name.toLowerCase().includes(needle) || row.phone.toLowerCase().includes(needle)
+    rows = rows.filter((row) =>
+      [row.customer_name, row.phone, row.city, row.comment, String(row.id)].some((part) =>
+        String(part || "").toLowerCase().includes(needle)
+      )
     );
   }
+  const from = dayLimit(range.from);
+  const to = dayLimit(range.to);
+  if (from) rows = rows.filter((row) => String(row.created_at).slice(0, 10) >= from);
+  if (to) rows = rows.filter((row) => String(row.created_at).slice(0, 10) <= to);
+  const sort = SORTS[range.sort] ? range.sort : "newest";
+  rows.sort(SORTS[sort]);
   return rows;
+}
+
+function dayLimit(value) {
+  const text = String(value || "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : "";
 }
 
 function cleanQuery(query) {
@@ -241,6 +261,7 @@ module.exports = {
   updateOrder,
   changeStatus,
   listOrders,
+  SORTS,
   ordersTotal,
   getOrder,
 };

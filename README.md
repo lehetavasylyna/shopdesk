@@ -33,7 +33,13 @@ Then open http://127.0.0.1:5173
 
 The API stays on http://127.0.0.1:5000. The React dev server forwards `/api` there.
 
-To start from an empty database, stop the program and delete `shop.db`. The sample data is filled in again on the next start.
+A short sample is filled in the first time `shop.db` is created. For a fuller shop, run:
+
+```bash
+npm run mock
+```
+
+That script replaces the rows in `shop.db` with customers, products, and orders. Refresh the page afterwards. To go back to an empty file, stop the program and delete `shop.db`.
 
 ## Tests
 

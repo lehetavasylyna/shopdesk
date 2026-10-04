@@ -51,22 +51,28 @@ export default function OrderForm() {
 
   return (
     <>
-      <h2>New order</h2>
-      <p className="hint">The total is taken from the price in the database. Stock is reduced as soon as the order is saved.</p>
+      <div className="head">
+        <div>
+          <h2>New order</h2>
+          <p className="hint">The total is taken from the price in the database. Stock goes down as soon as this is saved.</p>
+        </div>
+      </div>
       {error ? <p className="flash err">{error}</p> : null}
       {loaded && !products.length ? <p className="flash err">Add at least one product first.</p> : null}
 
       <form className="box" onSubmit={onSubmit}>
-        <label htmlFor="customer_id">Customer</label>
-        <select id="customer_id" value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
-          <option value="">— choose —</option>
-          {customers.map((customer) => (
-            <option key={customer.id} value={customer.id}>{customer.name}, {customer.phone}</option>
-          ))}
-          <option value="new">new customer</option>
-        </select>
+        <label htmlFor="customer_id">Customer
+          <select id="customer_id" value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
+            <option value="">— choose —</option>
+            {customers.map((customer) => (
+              <option key={customer.id} value={customer.id}>{customer.name}, {customer.phone}</option>
+            ))}
+            <option value="new">new customer</option>
+          </select>
+        </label>
 
         <p className="hint">Fill in the fields below only if you chose “new customer”.</p>
+        <div className="fields">
         <label>Name
           <input type="text" value={name} onChange={(event) => setName(event.target.value)} />
         </label>
@@ -79,6 +85,7 @@ export default function OrderForm() {
         <label>Address
           <input type="text" value={address} onChange={(event) => setAddress(event.target.value)} />
         </label>
+        </div>
 
         <h3>Products</h3>
         <div>

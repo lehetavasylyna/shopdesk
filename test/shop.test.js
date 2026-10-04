@@ -145,8 +145,29 @@ test("search finds a name in lower case", () => {
     createOrder(database, buyer, [{ product_id: item, qty: 1 }]);
     assert.equal(listOrders(database, null, "helen").length, 1);
     assert.equal(listOrders(database, null, "123 45").length, 1);
+    assert.equal(listOrders(database, null, "uzhhorod").length, 1);
     assert.equal(listOrders(database, "completed").length, 0);
     assert.equal(listOrders(database, "new").length, 1);
+  } finally {
+    database.close();
+  }
+});
+
+test("a date range and a total sort narrow the list", () => {
+  const database = tempDb(false);
+  try {
+    const buyer = addBuyer(database);
+    const cheap = addItem(database, "Sponge", 45, 5);
+    const dear = addItem(database, "Iron", 1190, 2);
+    createOrder(database, buyer, [{ product_id: cheap, qty: 1 }], "", "2026-09-21 10:00:00");
+    createOrder(database, buyer, [{ product_id: dear, qty: 1 }], "call first", "2026-09-28 10:00:00");
+
+    assert.equal(listOrders(database, null, "", { from: "2026-09-25" }).length, 1);
+    assert.equal(listOrders(database, null, "", { to: "2026-09-22" }).length, 1);
+    assert.equal(listOrders(database, null, "call first").length, 1);
+    const sorted = listOrders(database, null, "", { sort: "total-asc" });
+    assert.equal(sorted[0].total, 45);
+    assert.equal(sorted[1].total, 1190);
   } finally {
     database.close();
   }

@@ -18,7 +18,10 @@ export default function App() {
     <>
       <div className="top">
         <div className="top-inner">
-          <NavLink className="brand" to="/">The Shelf</NavLink>
+          <NavLink className="brand" to="/">
+            <span className="mark">The Shelf</span>
+            <span className="tag">order desk</span>
+          </NavLink>
           <nav>
             <NavLink to="/" end className={linkClass}>Orders</NavLink>
             <NavLink to="/orders/new" className={linkClass}>New order</NavLink>
@@ -29,6 +32,7 @@ export default function App() {
         </div>
       </div>
       <div className="page">
+        <main className="sheet">
         <Routes>
           <Route path="/" element={<Orders />} />
           <Route path="/orders/new" element={<OrderForm />} />
@@ -41,7 +45,8 @@ export default function App() {
           <Route path="/summary" element={<Summary />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
-        <p className="foot">The database is the file shop.db next to the program.</p>
+        </main>
+        <p className="foot">Orders, stock and customers live in the local file shop.db.</p>
       </div>
     </>
   );

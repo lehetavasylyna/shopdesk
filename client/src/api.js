@@ -17,10 +17,14 @@ function send(url, method, body) {
   });
 }
 
-export function getOrders(status, q) {
+export function getOrders(filters) {
+  const input = filters || {};
   const params = new URLSearchParams();
-  if (status) params.set("status", status);
-  if (q) params.set("q", q);
+  if (input.status) params.set("status", input.status);
+  if (input.q) params.set("q", input.q);
+  if (input.from) params.set("from", input.from);
+  if (input.to) params.set("to", input.to);
+  if (input.sort && input.sort !== "newest") params.set("sort", input.sort);
   const query = params.toString();
   return request("/api/orders" + (query ? "?" + query : ""));
 }

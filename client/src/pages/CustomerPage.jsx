@@ -38,12 +38,17 @@ export default function CustomerPage() {
 
   return (
     <>
-      <h2>{person.name}</h2>
+      <div className="head">
+        <h2>{person.name}</h2>
+        <Link to="/customers">All customers</Link>
+      </div>
       {error ? <p className="flash err">{error}</p> : null}
-      <p>
-        {person.phone}<br />
-        {person.city}{person.address ? ", " + person.address : ""}
-      </p>
+      <div className="facts">
+        <div><span>Phone</span><b>{person.phone}</b></div>
+        <div><span>City</span><b>{person.city}</b></div>
+        <div><span>Address</span><b>{person.address || "—"}</b></div>
+        <div><span>Orders</span><b>{pack.orders.length}</b></div>
+      </div>
       <h3>Orders</h3>
       {pack.orders.length === 0 ? <p className="hint">No orders yet.</p> : null}
       <table>
@@ -53,7 +58,7 @@ export default function CustomerPage() {
             <th>Date</th>
             <th>Status</th>
             <th>Lines</th>
-            <th>Total</th>
+            <th className="money">Total</th>
           </tr>
           {pack.orders.map((order) => (
             <tr key={order.id}>
@@ -61,12 +66,11 @@ export default function CustomerPage() {
               <td>{when(order.created_at)}</td>
               <td><span className={"status s-" + order.status}>{order.status}</span></td>
               <td>{order.positions}</td>
-              <td>{money(order.total)}</td>
+              <td className="money">{money(order.total)}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      <p><Link to="/customers">back to customers</Link></p>
     </>
   );
 }

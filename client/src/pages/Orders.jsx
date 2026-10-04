@@ -3,14 +3,23 @@ import { Link } from "react-router-dom";
 import { getOrders } from "../api";
 import { money, when } from "../format";
 
+const EMPTY = { status: "", q: "", from: "", to: "", sort: "newest" };
+
+const SORT_LABELS = {
+  newest: "newest first",
+  oldest: "oldest first",
+  "total-desc": "largest total",
+  "total-asc": "smallest total",
+};
+
 export default function Orders() {
-  const [status, setStatus] = useState("");
-  const [query, setQuery] = useState("");
+  const [filters, setFilters] = useState(EMPTY);
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
 
-  function load(nextStatus, nextQuery) {
-    getOrders(nextStatus, nextQuery)
+  function load(next) {
+    setFilters(next);
+    getOrders(next)
       .then((result) => {
         setData(result);
         setError("");
@@ -19,38 +28,63 @@ export default function Orders() {
   }
 
   useEffect(() => {
-    load("", "");
+    load(EMPTY);
   }, []);
 
-  function onSubmit(event) {
-    event.preventDefault();
-    load(status, query);
+  function change(field, value) {
+    load({ ...filters, [field]: value });
   }
+
+  const active = filters.status || filters.q || filters.from || filters.to || filters.sort !== "newest";
 
   return (
     <>
-      <h2>Orders</h2>
-      <p><Link className="button" to="/orders/new">New order</Link></p>
+      <div className="head">
+        <div>
+          <h2>Orders</h2>
+          <p className="hint">Filter by status or date, or search by name, phone, city, comment or order number.</p>
+        </div>
+        <Link className="button primary" to="/orders/new">New order</Link>
+      </div>
       {error ? <p className="flash err">{error}</p> : null}
 
-      <form className="filters" onSubmit={onSubmit}>
-        <label>Status
-          <select value={status} onChange={(event) => setStatus(event.target.value)}>
-            <option value="">all</option>
-            {(data ? data.statuses : []).map((item) => (
-              <option key={item} value={item}>{item}</option>
-            ))}
-          </select>
-        </label>
+      <div className="chips">
+        <button type="button" className={filters.status ? "" : "on"} onClick={() => change("status", "")}>All</button>
+        {(data ? data.statuses : ["new", "confirmed", "shipped", "completed", "cancelled"]).map((item) => (
+          <button
+            key={item}
+            type="button"
+            className={filters.status === item ? "on" : ""}
+            onClick={() => change("status", item)}
+          >
+            {item}
+          </button>
+        ))}
+      </div>
+
+      <form className="filters" onSubmit={(event) => event.preventDefault()}>
         <label>Search
           <input
             type="text"
-            value={query}
-            placeholder="name or phone"
-            onChange={(event) => setQuery(event.target.value)}
+            value={filters.q}
+            placeholder="Helen, 050, Uzhhorod, 12"
+            onChange={(event) => change("q", event.target.value)}
           />
         </label>
-        <button type="submit">Show</button>
+        <label>From
+          <input type="date" value={filters.from} onChange={(event) => change("from", event.target.value)} />
+        </label>
+        <label>To
+          <input type="date" value={filters.to} onChange={(event) => change("to", event.target.value)} />
+        </label>
+        <label>Sort
+          <select value={filters.sort} onChange={(event) => change("sort", event.target.value)}>
+            {Object.keys(SORT_LABELS).map((item) => (
+              <option key={item} value={item}>{SORT_LABELS[item]}</option>
+            ))}
+          </select>
+        </label>
+        {active ? <button type="button" onClick={() => load(EMPTY)}>Clear</button> : null}
       </form>
 
       {data ? (
@@ -66,9 +100,10 @@ export default function Orders() {
               <th className="num">No.</th>
               <th>Date</th>
               <th>Customer</th>
+              <th>City</th>
               <th>Phone</th>
               <th>Lines</th>
-              <th>Total</th>
+              <th className="money">Total</th>
               <th>Status</th>
             </tr>
             {data.orders.map((order) => (
@@ -76,10 +111,11 @@ export default function Orders() {
                 <td className="num"><Link to={"/orders/" + order.id}>{order.id}</Link></td>
                 <td>{when(order.created_at)}</td>
                 <td>{order.customer_name}</td>
+                <td>{order.city}</td>
                 <td>{order.phone}</td>
                 <td>{order.positions}</td>
-                <td>{money(order.total)}</td>
-                <td className={"status s-" + order.status}>{order.status}</td>
+                <td className="money">{money(order.total)}</td>
+                <td><span className={"status s-" + order.status}>{order.status}</span></td>
               </tr>
             ))}
           </tbody>

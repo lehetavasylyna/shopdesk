@@ -17,6 +17,7 @@ const {
   listOrders,
   ordersTotal,
   placeOrder,
+  SORTS,
   updateOrder,
 } = require("./orders");
 const { summary } = require("./summary");
@@ -49,13 +50,21 @@ function routes(db) {
   router.get("/orders", (req, res) => {
     let status = req.query.status || "";
     const query = req.query.q || "";
+    const from = String(req.query.from || "");
+    const to = String(req.query.to || "");
+    let sort = req.query.sort || "newest";
     if (status && !STATUSES.includes(status)) status = "";
-    const orders = listOrders(db, status || null, query);
+    if (!SORTS[sort]) sort = "newest";
+    const orders = listOrders(db, status || null, query, { from, to, sort });
     res.json({
       orders,
       statuses: STATUSES,
+      sorts: Object.keys(SORTS),
       status,
       query,
+      from,
+      to,
+      sort,
       totalSum: ordersTotal(orders),
     });
   });

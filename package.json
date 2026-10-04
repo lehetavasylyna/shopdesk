@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "start": "node src/server.js",
+    "mock": "node scripts/mock.js",
     "test": "node --test"
   },
   "dependencies": {

@@ -39,10 +39,16 @@ export default function Customers() {
 
   return (
     <>
-      <h2>Customers</h2>
+      <div className="head">
+        <div>
+          <h2>Customers</h2>
+          <p className="hint">{customers.length ? customers.length + " people. Open a name to see their orders." : "No one yet."}</p>
+        </div>
+      </div>
       {note ? <p className="flash ok">{note}</p> : null}
       {error ? <p className="flash err">{error}</p> : null}
       <form className="box" onSubmit={onSubmit}>
+        <div className="fields">
         <label>Name
           <input type="text" value={name} onChange={(event) => setName(event.target.value)} />
         </label>
@@ -55,9 +61,9 @@ export default function Customers() {
         <label>Address
           <input type="text" value={address} onChange={(event) => setAddress(event.target.value)} />
         </label>
+        </div>
         <p><button className="primary" type="submit">Save</button></p>
       </form>
-      <p className="hint">{customers.length} in the list.</p>
       <table>
         <tbody>
           <tr>

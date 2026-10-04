@@ -66,9 +66,13 @@ export default function ProductForm() {
 
   return (
     <>
-      <h2>{editing ? name || "Product" : "New product"}</h2>
+      <div className="head">
+        <h2>{editing ? name || "Product" : "New product"}</h2>
+        <Link to="/products">All products</Link>
+      </div>
       {error ? <p className="flash err">{error}</p> : null}
       <form className="box" onSubmit={onSubmit}>
+        <div className="fields">
         <label>Name
           <input type="text" value={name} onChange={(event) => setName(event.target.value)} />
         </label>
@@ -85,15 +89,15 @@ export default function ProductForm() {
         <label>Stock, pcs
           <input type="number" min="0" value={stock} onChange={(event) => setStock(event.target.value)} />
         </label>
+        </div>
         <p><button className="primary" type="submit">Save</button></p>
       </form>
       {editing ? (
         <>
-          <button type="button" onClick={onDelete}>Delete product</button>
+          <button className="quiet" type="button" onClick={onDelete}>Delete product</button>
           <p className="hint">If the product is already on an order, the database will not let it go.</p>
         </>
       ) : null}
-      <p><Link to="/products">back to the list</Link></p>
     </>
   );
 }

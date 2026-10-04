@@ -80,38 +80,54 @@ export default function OrderPage() {
 
   return (
     <>
-      <h2>Order #{order.id}</h2>
+      <div className="head">
+        <div>
+          <h2>Order #{order.id}</h2>
+          <p className="hint">{order.comment ? order.comment : "No comment on this order."}</p>
+        </div>
+        <Link to="/">All orders</Link>
+      </div>
       {note ? <p className="flash ok">{note}</p> : null}
       {error ? <p className="flash err">{error}</p> : null}
-      <p>
-        <Link to={"/customers/" + order.customer_id}>{order.customer_name}</Link>, {order.phone}<br />
-        {order.city}{order.address ? ", " + order.address : ""}
-      </p>
-      <p>
-        Date: {when(order.created_at)}<br />
-        Status: <b className={"status s-" + order.status}>{order.status}</b>
-      </p>
-      {order.comment ? <p>Comment: {order.comment}</p> : null}
+      <div className="facts">
+        <div>
+          <span>Customer</span>
+          <b><Link to={"/customers/" + order.customer_id}>{order.customer_name}</Link></b>
+          <span className="sub">{order.phone}</span>
+        </div>
+        <div>
+          <span>Where</span>
+          <b>{order.city}{order.address ? ", " + order.address : ""}</b>
+        </div>
+        <div>
+          <span>Placed</span>
+          <b>{when(order.created_at)}</b>
+        </div>
+        <div>
+          <span>Status</span>
+          <b><span className={"status s-" + order.status}>{order.status}</span></b>
+        </div>
+      </div>
 
       <table>
         <tbody>
           <tr>
             <th>Product</th>
             <th>Qty</th>
-            <th>Price</th>
-            <th>Sum</th>
+            <th className="money">Price</th>
+            <th className="money">Sum</th>
           </tr>
           {pack.items.map((item, index) => (
             <tr key={index}>
               <td>{item.name}</td>
               <td>{item.qty}</td>
-              <td>{money(item.price)}</td>
-              <td>{money(item.line_sum)}</td>
+              <td className="money">{money(item.price)}</td>
+              <td className="money">{money(item.line_sum)}</td>
             </tr>
           ))}
           <tr>
             <td colSpan="3"><b>Total</b></td>
-            <td><b>{money(order.total)}</b></td>
+            <td className="money"><b>{money(order.total)}</b></td>
           </tr>
         </tbody>
       </table>
@@ -171,7 +187,6 @@ export default function OrderPage() {
           <li key={index}>{when(event.created_at)} — {event.status}</li>
         ))}
       </ul>
-      <p><Link to="/">back to the list</Link></p>
     </>
   );
 }
