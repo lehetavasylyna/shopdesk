@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { createCustomer, getCustomers } from "../api";
 
 export default function Customers() {
@@ -67,7 +68,7 @@ export default function Customers() {
           </tr>
           {customers.map((customer) => (
             <tr key={customer.id}>
-              <td>{customer.name}</td>
+              <td><Link to={"/customers/" + customer.id}>{customer.name}</Link></td>
               <td>{customer.phone}</td>
               <td>{customer.city}</td>
               <td>{customer.address}</td>

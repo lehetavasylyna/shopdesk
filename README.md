@@ -10,6 +10,9 @@ What it does:
 - statuses: new → confirmed → shipped → completed, or cancel before shipping
 - stock goes down when an order is saved, and comes back if the order is cancelled
 - the price on a receipt stays as it was at the time of the order
+- an open order (new or confirmed) can still be changed; a shipped one cannot
+- a customer page with that person’s orders
+- a short summary: orders by status, and products with three pieces or fewer
 
 ## Run
 

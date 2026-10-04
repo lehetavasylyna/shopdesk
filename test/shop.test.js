@@ -7,7 +7,9 @@ const { openDb, prepare } = require("../src/db");
 const { showDate } = require("../src/time");
 const { addCustomer } = require("../src/customers");
 const { addProduct, deleteProduct, getProduct, updateProduct } = require("../src/products");
-const { changeStatus, createOrder, getOrder, listOrders } = require("../src/orders");
+const { changeStatus, createOrder, getOrder, listOrders, updateOrder } = require("../src/orders");
+const { customerWithOrders } = require("../src/customers");
+const { summary } = require("../src/summary");
 const { createApp } = require("../src/server");
 
 function tempDb(seed) {
@@ -195,6 +197,72 @@ test("the sample data is not inserted twice", () => {
   }
 });
 
+test("an open order can be rewritten, a shipped one cannot", () => {
+  const database = tempDb(false);
+  try {
+    const buyer = addBuyer(database);
+    const sponge = addItem(database, "Sponge", 45, 5);
+    const soap = addItem(database, "Soap", 80, 2);
+    const orderId = createOrder(database, buyer, [{ product_id: sponge, qty: 2 }]);
+    updateProduct(database, sponge, "Sponge", "Household", 90, 3);
+
+    updateOrder(database, orderId, [
+      { product_id: sponge, qty: 1 },
+      { product_id: soap, qty: 1 },
+    ], "call in the morning");
+
+    const pack = getOrder(database, orderId);
+    assert.equal(pack.order.comment, "call in the morning");
+    assert.equal(pack.order.total, 45 + 80);
+    assert.equal(pack.items.find((row) => row.product_id === sponge).price, 45);
+    assert.equal(pack.items.find((row) => row.product_id === soap).price, 80);
+    assert.equal(getProduct(database, sponge).stock, 4);
+    assert.equal(getProduct(database, soap).stock, 1);
+
+    assert.throws(
+      () => updateOrder(database, orderId, [{ product_id: sponge, qty: 20 }], "too many"),
+      /Sponge/
+    );
+    assert.equal(getOrder(database, orderId).order.total, 125);
+    assert.equal(getProduct(database, sponge).stock, 4);
+
+    changeStatus(database, orderId, "confirmed");
+    changeStatus(database, orderId, "shipped");
+    assert.throws(() => updateOrder(database, orderId, [{ product_id: sponge, qty: 1 }], ""), /on its way/);
+    assert.equal(getProduct(database, sponge).stock, 4);
+  } finally {
+    database.close();
+  }
+});
+
+test("summary and a customer's orders", () => {
+  const database = tempDb(false);
+  try {
+    const buyer = addBuyer(database);
+    const other = addBuyer(database, "Mark Ellis", "0502223344");
+    const item = addItem(database, "Lamp", 650, 3);
+    createOrder(database, buyer, [{ product_id: item, qty: 1 }]);
+    const second = createOrder(database, buyer, [{ product_id: item, qty: 1 }]);
+    changeStatus(database, second, "cancelled");
+
+    const report = summary(database);
+    const byName = {};
+    for (const row of report.byStatus) byName[row.status] = row;
+    assert.equal(byName.new.count, 1);
+    assert.equal(byName.new.total, 650);
+    assert.equal(byName.cancelled.count, 1);
+    assert.equal(report.lowStock[0].name, "Lamp");
+    assert.equal(report.lowStock[0].stock, 2);
+
+    const pack = customerWithOrders(database, buyer);
+    assert.equal(pack.orders.length, 2);
+    assert.equal(customerWithOrders(database, other).orders.length, 0);
+    assert.equal(customerWithOrders(database, 99), null);
+  } finally {
+    database.close();
+  }
+});
+
 test("api opens and a new order reduces the lamp stock", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "polychka-"));
   const dbPath = path.join(dir, "shop.db");
@@ -205,7 +273,7 @@ test("api opens and a new order reduces the lamp stock", async () => {
   const base = "http://127.0.0.1:" + port;
 
   try {
-    for (const url of ["/api/orders", "/api/products", "/api/customers", "/api/orders/1", "/api/products/10"]) {
+    for (const url of ["/api/orders", "/api/products", "/api/customers", "/api/orders/1", "/api/products/10", "/api/summary", "/api/customers/1"]) {
       const response = await fetch(base + url);
       assert.equal(response.status, 200, url);
     }

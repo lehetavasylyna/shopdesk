@@ -1,6 +1,6 @@
 const express = require("express");
 const { ShopError } = require("./errors");
-const { addCustomer, listCustomers } = require("./customers");
+const { addCustomer, customerWithOrders, listCustomers } = require("./customers");
 const {
   CATEGORIES,
   addProduct,
@@ -17,7 +17,9 @@ const {
   listOrders,
   ordersTotal,
   placeOrder,
+  updateOrder,
 } = require("./orders");
+const { summary } = require("./summary");
 
 function handle(fn) {
   return function (req, res, next) {
@@ -39,6 +41,10 @@ function paramId(req) {
 
 function routes(db) {
   const router = express.Router();
+
+  router.get("/summary", (req, res) => {
+    res.json(summary(db));
+  });
 
   router.get("/orders", (req, res) => {
     let status = req.query.status || "";
@@ -75,6 +81,15 @@ function routes(db) {
       nextStatuses: NEXT_STATUS[pack.order.status],
     });
   });
+
+  router.put(
+    "/orders/:id",
+    handle((req, res) => {
+      const body = req.body || {};
+      updateOrder(db, paramId(req), body.lines, body.comment);
+      res.json({ ok: true });
+    })
+  );
 
   router.post(
     "/orders/:id/status",
@@ -125,6 +140,15 @@ function routes(db) {
 
   router.get("/customers", (req, res) => {
     res.json({ customers: listCustomers(db) });
+  });
+
+  router.get("/customers/:id", (req, res) => {
+    const pack = customerWithOrders(db, paramId(req));
+    if (!pack) {
+      res.status(404).json({ error: "Customer not found" });
+      return;
+    }
+    res.json(pack);
   });
 
   router.post(

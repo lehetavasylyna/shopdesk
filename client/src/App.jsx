@@ -5,6 +5,8 @@ import OrderPage from "./pages/OrderPage";
 import Products from "./pages/Products";
 import ProductForm from "./pages/ProductForm";
 import Customers from "./pages/Customers";
+import CustomerPage from "./pages/CustomerPage";
+import Summary from "./pages/Summary";
 import NotFound from "./pages/NotFound";
 
 function linkClass(props) {
@@ -22,6 +24,7 @@ export default function App() {
             <NavLink to="/orders/new" className={linkClass}>New order</NavLink>
             <NavLink to="/products" className={linkClass}>Products</NavLink>
             <NavLink to="/customers" className={linkClass}>Customers</NavLink>
+            <NavLink to="/summary" className={linkClass}>Summary</NavLink>
           </nav>
         </div>
       </div>
@@ -34,6 +37,8 @@ export default function App() {
           <Route path="/products/new" element={<ProductForm />} />
           <Route path="/products/:id" element={<ProductForm />} />
           <Route path="/customers" element={<Customers />} />
+          <Route path="/customers/:id" element={<CustomerPage />} />
+          <Route path="/summary" element={<Summary />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
         <p className="foot">The database is the file shop.db next to the program.</p>

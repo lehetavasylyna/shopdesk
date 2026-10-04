@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
-import { changeStatus, getOrder } from "../api";
+import { changeStatus, getOrder, getProducts, updateOrder } from "../api";
 import { money, when } from "../format";
 
 export default function OrderPage() {
@@ -11,12 +11,17 @@ export default function OrderPage() {
   const [note, setNote] = useState(location.state && location.state.note ? location.state.note : "");
   const [error, setError] = useState("");
   const [missing, setMissing] = useState(false);
+  const [products, setProducts] = useState([]);
+  const [lines, setLines] = useState([]);
+  const [comment, setComment] = useState("");
 
   function load() {
     getOrder(id)
       .then((data) => {
         setPack(data);
         setStatus(data.nextStatuses[0] || "");
+        setLines(data.items.map((item) => ({ product_id: String(item.product_id), qty: item.qty })));
+        setComment(data.order.comment || "");
         setMissing(false);
       })
       .catch((err) => {
@@ -27,7 +32,24 @@ export default function OrderPage() {
 
   useEffect(() => {
     load();
+    getProducts().then((data) => setProducts(data.products)).catch(() => {});
   }, [id]);
+
+  function changeLine(index, field, value) {
+    setLines(lines.map((line, i) => (i === index ? { ...line, [field]: value } : line)));
+  }
+
+  function onSaveLines(event) {
+    event.preventDefault();
+    setNote("");
+    setError("");
+    updateOrder(id, { lines, comment })
+      .then(() => {
+        setNote("Order updated");
+        load();
+      })
+      .catch((err) => setError(err.message));
+  }
 
   function onSubmit(event) {
     event.preventDefault();
@@ -62,7 +84,7 @@ export default function OrderPage() {
       {note ? <p className="flash ok">{note}</p> : null}
       {error ? <p className="flash err">{error}</p> : null}
       <p>
-        {order.customer_name}, {order.phone}<br />
+        <Link to={"/customers/" + order.customer_id}>{order.customer_name}</Link>, {order.phone}<br />
         {order.city}{order.address ? ", " + order.address : ""}
       </p>
       <p>
@@ -93,7 +115,40 @@ export default function OrderPage() {
           </tr>
         </tbody>
       </table>
-      <p className="hint">The price on a line is the one from the moment of the order. If the product gets more expensive later, this receipt stays as it was.</p>
+      <p className="hint">The price on a line is the one from the moment of the order. If the product gets more expensive later, this receipt stays as it was. A product added later takes today's price.</p>
+
+      {order.status === "new" || order.status === "confirmed" ? (
+        <form className="box" onSubmit={onSaveLines}>
+          <h3>Change the lines</h3>
+          <p className="hint">Only while the order is new or confirmed. After shipping the receipt stays as it is.</p>
+          {lines.map((line, index) => (
+            <div className="line" key={index}>
+              <select value={line.product_id} onChange={(event) => changeLine(index, "product_id", event.target.value)}>
+                <option value="">— product —</option>
+                {products.map((product) => (
+                  <option key={product.id} value={product.id}>
+                    {product.name} — {money(product.price)}, stock {product.stock}
+                  </option>
+                ))}
+              </select>
+              <input
+                className="qty"
+                type="number"
+                min="1"
+                value={line.qty}
+                onChange={(event) => changeLine(index, "qty", event.target.value)}
+              />
+            </div>
+          ))}
+          <p>
+            <button type="button" onClick={() => setLines(lines.concat([{ product_id: "", qty: 1 }]))}>another line</button>
+          </p>
+          <label>Comment
+            <textarea rows="3" value={comment} onChange={(event) => setComment(event.target.value)} />
+          </label>
+          <p><button className="primary" type="submit">Save changes</button></p>
+        </form>
+      ) : null}
 
       {pack.nextStatuses.length ? (
         <form className="box" onSubmit={onSubmit}>

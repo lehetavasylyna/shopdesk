@@ -80,6 +80,60 @@ function createOrder(db, customerId, lines, comment, createdAt) {
   return run();
 }
 
+const OPEN_FOR_EDIT = ["new", "confirmed"];
+
+function updateOrder(db, orderId, lines, comment) {
+  const order = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId);
+  if (!order) throw new ShopError("Order not found");
+  if (!OPEN_FOR_EDIT.includes(order.status)) {
+    throw new ShopError("This order is already on its way. The lines cannot be changed.");
+  }
+
+  comment = clean(comment);
+  if (comment.length > 400) throw new ShopError("The comment is too long");
+  const merged = orderLines(lines || []);
+
+  const oldItems = db.prepare("SELECT product_id, price FROM order_items WHERE order_id = ?").all(orderId);
+  const oldPrice = new Map();
+  for (const item of oldItems) {
+    if (!oldPrice.has(item.product_id)) oldPrice.set(item.product_id, item.price);
+  }
+
+  const giveBack = db.prepare("UPDATE products SET stock = stock + ? WHERE id = ?");
+  const take = db.prepare("UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?");
+  const clearItems = db.prepare("DELETE FROM order_items WHERE order_id = ?");
+  const insertItem = db.prepare(
+    "INSERT INTO order_items (order_id, product_id, qty, price) VALUES (?, ?, ?, ?)"
+  );
+  const saveOrder = db.prepare("UPDATE orders SET comment = ?, total = ? WHERE id = ?");
+
+  const run = db.transaction(() => {
+    const current = db.prepare("SELECT product_id, qty FROM order_items WHERE order_id = ?").all(orderId);
+    for (const item of current) giveBack.run(item.qty, item.product_id);
+    clearItems.run(orderId);
+
+    let total = 0;
+    for (const [productId, qty] of merged) {
+      const product = getProduct(db, productId);
+      if (!product) throw new ShopError("Product not found");
+      if (product.stock < qty) {
+        throw new ShopError(
+          `Not enough "${product.name}": ${product.stock} in stock, ${qty} in the order`
+        );
+      }
+      const updated = take.run(qty, productId, qty);
+      if (updated.changes !== 1) {
+        throw new ShopError(`Not enough "${product.name}", the stock already changed`);
+      }
+      const price = oldPrice.has(productId) ? oldPrice.get(productId) : product.price;
+      insertItem.run(orderId, productId, qty, price);
+      total += price * qty;
+    }
+    saveOrder.run(comment, total, orderId);
+  });
+  run();
+}
+
 function placeOrder(db, body) {
   const input = body || {};
   let customerId = input.customer_id;
@@ -166,7 +220,7 @@ function getOrder(db, orderId) {
   if (!order) return null;
   const items = db
     .prepare(
-      `SELECT oi.qty, oi.price, p.name, oi.qty * oi.price AS line_sum
+      `SELECT oi.product_id, oi.qty, oi.price, p.name, oi.qty * oi.price AS line_sum
        FROM order_items oi
        JOIN products p ON p.id = oi.product_id
        WHERE oi.order_id = ?
@@ -184,6 +238,7 @@ module.exports = {
   NEXT_STATUS,
   createOrder,
   placeOrder,
+  updateOrder,
   changeStatus,
   listOrders,
   ordersTotal,

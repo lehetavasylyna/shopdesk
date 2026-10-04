@@ -23,4 +23,19 @@ function getCustomer(db, customerId) {
   return db.prepare("SELECT * FROM customers WHERE id = ?").get(customerId);
 }
 
-module.exports = { addCustomer, listCustomers, getCustomer };
+function customerWithOrders(db, customerId) {
+  const customer = getCustomer(db, customerId);
+  if (!customer) return null;
+  const orders = db
+    .prepare(
+      `SELECT id, status, total, created_at,
+              (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = orders.id) AS positions
+       FROM orders
+       WHERE customer_id = ?
+       ORDER BY created_at DESC, id DESC`
+    )
+    .all(customerId);
+  return { customer, orders };
+}
+
+module.exports = { addCustomer, listCustomers, getCustomer, customerWithOrders };

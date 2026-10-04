@@ -37,6 +37,14 @@ export function changeStatus(id, status) {
   return send("/api/orders/" + id + "/status", "POST", { status });
 }
 
+export function updateOrder(id, body) {
+  return send("/api/orders/" + id, "PUT", body);
+}
+
+export function getSummary() {
+  return request("/api/summary");
+}
+
 export function getProducts() {
   return request("/api/products");
 }
@@ -59,6 +67,10 @@ export function deleteProduct(id) {
 
 export function getCustomers() {
   return request("/api/customers");
+}
+
+export function getCustomer(id) {
+  return request("/api/customers/" + id);
 }
 
 export function createCustomer(body) {
