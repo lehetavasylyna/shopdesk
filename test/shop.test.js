@@ -3,34 +3,38 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const test = require("node:test");
-const db = require("../src/db");
+const { openDb, prepare } = require("../src/db");
+const { showDate } = require("../src/time");
+const { addCustomer } = require("../src/customers");
+const { addProduct, deleteProduct, getProduct, updateProduct } = require("../src/products");
+const { changeStatus, createOrder, getOrder, listOrders } = require("../src/orders");
 const { createApp } = require("../src/server");
 
 function tempDb(seed) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "polychka-"));
   const dbPath = path.join(dir, "shop.db");
-  const database = db.openDb(dbPath);
-  db.prepare(database, seed);
+  const database = openDb(dbPath);
+  prepare(database, seed);
   return database;
 }
 
 function addBuyer(database, name, phone) {
-  return db.addCustomer(database, name || "Olga Test", phone || "0501112233", "Uzhhorod", "3 Voloshyna St");
+  return addCustomer(database, name || "Olga Test", phone || "0501112233", "Uzhhorod", "3 Voloshyna St");
 }
 
 function addItem(database, name, price, stock) {
-  return db.addProduct(database, name || "Sponge", "Household", price || 45, stock === undefined ? 5 : stock);
+  return addProduct(database, name || "Sponge", "Household", price || 45, stock === undefined ? 5 : stock);
 }
 
 test("date is shown as day.month.year", () => {
-  assert.equal(db.showDate("2026-09-21 10:15:00"), "21.09.2026 10:15");
+  assert.equal(showDate("2026-09-21 10:15:00"), "21.09.2026 10:15");
 });
 
 test("a short phone and a zero price are rejected", () => {
   const database = tempDb(false);
   try {
     assert.throws(() => addBuyer(database, "Olga", "123"), /10/);
-    assert.throws(() => db.addProduct(database, "Sponge", "Household", 0, 5), /zero/);
+    assert.throws(() => addProduct(database, "Sponge", "Household", 0, 5), /zero/);
   } finally {
     database.close();
   }
@@ -41,19 +45,19 @@ test("an order reduces stock and keeps the old price", () => {
   try {
     const buyer = addBuyer(database);
     const item = addItem(database, "Sponge", 45, 5);
-    const orderId = db.createOrder(database, buyer, [
+    const orderId = createOrder(database, buyer, [
       { product_id: item, qty: 2 },
       { product_id: item, qty: 1 },
     ]);
-    assert.equal(db.getProduct(database, item).stock, 2);
-    let pack = db.getOrder(database, orderId);
+    assert.equal(getProduct(database, item).stock, 2);
+    let pack = getOrder(database, orderId);
     assert.equal(pack.order.total, 135);
     assert.equal(pack.items[0].qty, 3);
     assert.equal(pack.items[0].price, 45);
     assert.equal(pack.events.length, 1);
 
-    db.updateProduct(database, item, "Sponge", "Household", 90, 2);
-    pack = db.getOrder(database, orderId);
+    updateProduct(database, item, "Sponge", "Household", 90, 2);
+    pack = getOrder(database, orderId);
     assert.equal(pack.items[0].price, 45);
     assert.equal(pack.order.total, 135);
   } finally {
@@ -69,14 +73,14 @@ test("if the second line does not fit, nothing is saved", () => {
     const second = addItem(database, "Lamp", 650, 1);
     assert.throws(
       () =>
-        db.createOrder(database, buyer, [
+        createOrder(database, buyer, [
           { product_id: first, qty: 1 },
           { product_id: second, qty: 2 },
         ]),
       /Lamp/
     );
-    assert.equal(db.getProduct(database, first).stock, 4);
-    assert.equal(db.getProduct(database, second).stock, 1);
+    assert.equal(getProduct(database, first).stock, 4);
+    assert.equal(getProduct(database, second).stock, 1);
     assert.equal(database.prepare("SELECT COUNT(*) AS n FROM orders").get().n, 0);
   } finally {
     database.close();
@@ -87,7 +91,7 @@ test("an empty order is not saved", () => {
   const database = tempDb(false);
   try {
     const buyer = addBuyer(database);
-    assert.throws(() => db.createOrder(database, buyer, [{ product_id: "", qty: "1" }]), /at least one/);
+    assert.throws(() => createOrder(database, buyer, [{ product_id: "", qty: "1" }]), /at least one/);
   } finally {
     database.close();
   }
@@ -98,18 +102,18 @@ test("statuses move in order, and cancel puts the stock back", () => {
   try {
     const buyer = addBuyer(database);
     const item = addItem(database, "Sponge", 45, 5);
-    const orderId = db.createOrder(database, buyer, [{ product_id: item, qty: 2 }]);
-    assert.throws(() => db.changeStatus(database, orderId, "completed"), /Cannot/);
-    db.changeStatus(database, orderId, "confirmed", "2026-09-22 09:00:00");
-    db.changeStatus(database, orderId, "cancelled", "2026-09-22 09:10:00");
-    assert.equal(db.getProduct(database, item).stock, 5);
-    const pack = db.getOrder(database, orderId);
+    const orderId = createOrder(database, buyer, [{ product_id: item, qty: 2 }]);
+    assert.throws(() => changeStatus(database, orderId, "completed"), /Cannot/);
+    changeStatus(database, orderId, "confirmed", "2026-09-22 09:00:00");
+    changeStatus(database, orderId, "cancelled", "2026-09-22 09:10:00");
+    assert.equal(getProduct(database, item).stock, 5);
+    const pack = getOrder(database, orderId);
     assert.equal(pack.order.status, "cancelled");
     assert.deepEqual(
       pack.events.map((row) => row.status),
       ["new", "confirmed", "cancelled"]
     );
-    assert.throws(() => db.changeStatus(database, orderId, "new"), /Cannot/);
+    assert.throws(() => changeStatus(database, orderId, "new"), /Cannot/);
   } finally {
     database.close();
   }
@@ -120,12 +124,12 @@ test("a shipped order cannot be cancelled", () => {
   try {
     const buyer = addBuyer(database);
     const item = addItem(database, "Sponge", 45, 5);
-    const orderId = db.createOrder(database, buyer, [{ product_id: item, qty: 1 }]);
-    db.changeStatus(database, orderId, "confirmed");
-    db.changeStatus(database, orderId, "shipped");
-    assert.throws(() => db.changeStatus(database, orderId, "cancelled"), /Cannot/);
-    assert.equal(db.getProduct(database, item).stock, 4);
-    assert.equal(db.getOrder(database, orderId).order.status, "shipped");
+    const orderId = createOrder(database, buyer, [{ product_id: item, qty: 1 }]);
+    changeStatus(database, orderId, "confirmed");
+    changeStatus(database, orderId, "shipped");
+    assert.throws(() => changeStatus(database, orderId, "cancelled"), /Cannot/);
+    assert.equal(getProduct(database, item).stock, 4);
+    assert.equal(getOrder(database, orderId).order.status, "shipped");
   } finally {
     database.close();
   }
@@ -136,11 +140,11 @@ test("search finds a name in lower case", () => {
   try {
     const buyer = addBuyer(database, "Helen Parker", "050 123 45 67");
     const item = addItem(database);
-    db.createOrder(database, buyer, [{ product_id: item, qty: 1 }]);
-    assert.equal(db.listOrders(database, null, "helen").length, 1);
-    assert.equal(db.listOrders(database, null, "123 45").length, 1);
-    assert.equal(db.listOrders(database, "completed").length, 0);
-    assert.equal(db.listOrders(database, "new").length, 1);
+    createOrder(database, buyer, [{ product_id: item, qty: 1 }]);
+    assert.equal(listOrders(database, null, "helen").length, 1);
+    assert.equal(listOrders(database, null, "123 45").length, 1);
+    assert.equal(listOrders(database, "completed").length, 0);
+    assert.equal(listOrders(database, "new").length, 1);
   } finally {
     database.close();
   }
@@ -152,11 +156,11 @@ test("a product that is on an order cannot be deleted", () => {
     const buyer = addBuyer(database);
     const used = addItem(database, "Blanket", 790, 4);
     const free = addItem(database, "Hangers", 180, 10);
-    db.createOrder(database, buyer, [{ product_id: used, qty: 1 }]);
-    assert.throws(() => db.deleteProduct(database, used), /order/);
-    assert.ok(db.getProduct(database, used));
-    db.deleteProduct(database, free);
-    assert.equal(db.getProduct(database, free), undefined);
+    createOrder(database, buyer, [{ product_id: used, qty: 1 }]);
+    assert.throws(() => deleteProduct(database, used), /order/);
+    assert.ok(getProduct(database, used));
+    deleteProduct(database, free);
+    assert.equal(getProduct(database, free), undefined);
   } finally {
     database.close();
   }
@@ -165,11 +169,11 @@ test("a product that is on an order cannot be deleted", () => {
 test("the sample data is not inserted twice", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "polychka-"));
   const dbPath = path.join(dir, "shop.db");
-  let database = db.openDb(dbPath);
-  db.prepare(database, true);
+  let database = openDb(dbPath);
+  prepare(database, true);
   database.close();
-  database = db.openDb(dbPath);
-  db.prepare(database, true);
+  database = openDb(dbPath);
+  prepare(database, true);
   try {
     assert.equal(database.prepare("SELECT COUNT(*) AS n FROM orders").get().n, 4);
     const totals = {};
