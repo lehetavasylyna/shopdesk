@@ -59,7 +59,9 @@ function clean(value) {
 }
 
 function asInt(value, message) {
-  const text = String(value === undefined || value === null ? "" : value).trim();
+  const text = String(
+    value === undefined || value === null ? "" : value,
+  ).trim();
   if (!/^-?\d+$/.test(text)) throw new ShopError(message);
   return Number(text);
 }
@@ -71,9 +73,12 @@ function addCustomer(db, name, phone, city, address) {
   address = clean(address);
   if (name.length < 2) throw new ShopError("Enter the customer name");
   const digits = phone.replace(/\D/g, "");
-  if (digits.length < 10) throw new ShopError("The phone number needs at least 10 digits");
+  if (digits.length < 10)
+    throw new ShopError("The phone number needs at least 10 digits");
   const info = db
-    .prepare("INSERT INTO customers (name, phone, city, address) VALUES (?, ?, ?, ?)")
+    .prepare(
+      "INSERT INTO customers (name, phone, city, address) VALUES (?, ?, ?, ?)",
+    )
     .run(name, phone, city, address);
   return Number(info.lastInsertRowid);
 }
@@ -82,7 +87,8 @@ function productFields(name, category, price, stock) {
   name = clean(name);
   category = clean(category);
   if (name.length < 2) throw new ShopError("Enter the product name");
-  if (!CATEGORIES.includes(category)) throw new ShopError("Pick a category from the list");
+  if (!CATEGORIES.includes(category))
+    throw new ShopError("Pick a category from the list");
   price = asInt(price, "Price has to be a whole number");
   stock = asInt(stock, "Stock has to be a whole number");
   if (price <= 0) throw new ShopError("Price has to be greater than zero");
@@ -93,7 +99,9 @@ function productFields(name, category, price, stock) {
 function addProduct(db, name, category, price, stock) {
   const fields = productFields(name, category, price, stock);
   const info = db
-    .prepare("INSERT INTO products (name, category, price, stock) VALUES (?, ?, ?, ?)")
+    .prepare(
+      "INSERT INTO products (name, category, price, stock) VALUES (?, ?, ?, ?)",
+    )
     .run(fields.name, fields.category, fields.price, fields.stock);
   return Number(info.lastInsertRowid);
 }
@@ -101,13 +109,9 @@ function addProduct(db, name, category, price, stock) {
 function updateProduct(db, productId, name, category, price, stock) {
   if (!getProduct(db, productId)) throw new ShopError("Product not found");
   const fields = productFields(name, category, price, stock);
-  db.prepare("UPDATE products SET name = ?, category = ?, price = ?, stock = ? WHERE id = ?").run(
-    fields.name,
-    fields.category,
-    fields.price,
-    fields.stock,
-    productId
-  );
+  db.prepare(
+    "UPDATE products SET name = ?, category = ?, price = ?, stock = ? WHERE id = ?",
+  ).run(fields.name, fields.category, fields.price, fields.stock, productId);
 }
 
 function deleteProduct(db, productId) {
@@ -117,7 +121,9 @@ function deleteProduct(db, productId) {
   } catch (err) {
     if (err instanceof ShopError) throw err;
     if (String(err.code || "").includes("CONSTRAINT")) {
-      throw new ShopError("This product is already in an order, so it cannot be deleted");
+      throw new ShopError(
+        "This product is already in an order, so it cannot be deleted",
+      );
     }
     throw err;
   }
@@ -143,12 +149,14 @@ function createOrder(db, customerId, lines, comment, createdAt) {
   customerId = asInt(customerId, "Choose a customer");
   comment = clean(comment);
   if (comment.length > 400) throw new ShopError("The comment is too long");
-  if (!getCustomer(db, customerId)) throw new ShopError("That customer does not exist");
+  if (!getCustomer(db, customerId))
+    throw new ShopError("That customer does not exist");
 
   const merged = new Map();
   for (const line of lines) {
     const rawId = line.product_id;
-    if (rawId === undefined || rawId === null || String(rawId).trim() === "") continue;
+    if (rawId === undefined || rawId === null || String(rawId).trim() === "")
+      continue;
     const productId = asInt(rawId, "Invalid product");
     const qty = asInt(line.qty, "Quantity has to be a number");
     if (qty <= 0) throw new ShopError("Quantity has to be greater than zero");
@@ -165,14 +173,18 @@ function createOrder(db, customerId, lines, comment, createdAt) {
       if (!product) throw new ShopError("Product not found");
       if (product.stock < qty) {
         throw new ShopError(
-          `Not enough "${product.name}": ${product.stock} in stock, ${qty} in the order`
+          `Not enough "${product.name}": ${product.stock} in stock, ${qty} in the order`,
         );
       }
       const updated = db
-        .prepare("UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?")
+        .prepare(
+          "UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?",
+        )
         .run(qty, productId, qty);
       if (updated.changes !== 1) {
-        throw new ShopError(`Not enough "${product.name}", the stock already changed`);
+        throw new ShopError(
+          `Not enough "${product.name}", the stock already changed`,
+        );
       }
       total += product.price * qty;
       prepared.push({ productId, qty, price: product.price });
@@ -181,20 +193,19 @@ function createOrder(db, customerId, lines, comment, createdAt) {
     const info = db
       .prepare(
         `INSERT INTO orders (customer_id, status, comment, total, created_at)
-         VALUES (?, 'new', ?, ?, ?)`
+         VALUES (?, 'new', ?, ?, ?)`,
       )
       .run(customerId, comment, total, created);
     const orderId = Number(info.lastInsertRowid);
     const insertItem = db.prepare(
-      `INSERT INTO order_items (order_id, product_id, qty, price) VALUES (?, ?, ?, ?)`
+      `INSERT INTO order_items (order_id, product_id, qty, price) VALUES (?, ?, ?, ?)`,
     );
     for (const row of prepared) {
       insertItem.run(orderId, row.productId, row.qty, row.price);
     }
-    db.prepare("INSERT INTO order_events (order_id, status, created_at) VALUES (?, 'new', ?)").run(
-      orderId,
-      created
-    );
+    db.prepare(
+      "INSERT INTO order_events (order_id, status, created_at) VALUES (?, 'new', ?)",
+    ).run(orderId, created);
     return orderId;
   });
 
@@ -207,23 +218,29 @@ function changeStatus(db, orderId, newStatus, when) {
   if (!STATUSES.includes(newStatus)) throw new ShopError("Unknown status");
   const allowed = NEXT_STATUS[order.status];
   if (!allowed.includes(newStatus)) {
-    if (order.status === newStatus) throw new ShopError("The order is already in this status");
+    if (order.status === newStatus)
+      throw new ShopError("The order is already in this status");
     throw new ShopError(`Cannot move from "${order.status}" to "${newStatus}"`);
   }
 
   const moment = when || nowText();
   const run = db.transaction(() => {
     if (newStatus === "cancelled") {
-      const items = db.prepare("SELECT product_id, qty FROM order_items WHERE order_id = ?").all(orderId);
-      const giveBack = db.prepare("UPDATE products SET stock = stock + ? WHERE id = ?");
+      const items = db
+        .prepare("SELECT product_id, qty FROM order_items WHERE order_id = ?")
+        .all(orderId);
+      const giveBack = db.prepare(
+        "UPDATE products SET stock = stock + ? WHERE id = ?",
+      );
       for (const item of items) giveBack.run(item.qty, item.product_id);
     }
-    db.prepare("UPDATE orders SET status = ? WHERE id = ?").run(newStatus, orderId);
-    db.prepare("INSERT INTO order_events (order_id, status, created_at) VALUES (?, ?, ?)").run(
-      orderId,
+    db.prepare("UPDATE orders SET status = ? WHERE id = ?").run(
       newStatus,
-      moment
+      orderId,
     );
+    db.prepare(
+      "INSERT INTO order_events (order_id, status, created_at) VALUES (?, ?, ?)",
+    ).run(orderId, newStatus, moment);
   });
   run();
 }
@@ -247,7 +264,9 @@ function listOrders(db, status, query) {
   if (needle) {
     // SQLite lower() does not handle every letter, so the short list is filtered here.
     rows = rows.filter(
-      (row) => row.customer_name.toLowerCase().includes(needle) || row.phone.toLowerCase().includes(needle)
+      (row) =>
+        row.customer_name.toLowerCase().includes(needle) ||
+        row.phone.toLowerCase().includes(needle),
     );
   }
   return rows;
@@ -263,7 +282,7 @@ function getOrder(db, orderId) {
       `SELECT o.*, c.name AS customer_name, c.phone, c.city, c.address
        FROM orders o
        JOIN customers c ON c.id = o.customer_id
-       WHERE o.id = ?`
+       WHERE o.id = ?`,
     )
     .get(orderId);
   if (!order) return null;
@@ -273,11 +292,13 @@ function getOrder(db, orderId) {
        FROM order_items oi
        JOIN products p ON p.id = oi.product_id
        WHERE oi.order_id = ?
-       ORDER BY oi.id`
+       ORDER BY oi.id`,
     )
     .all(orderId);
   const events = db
-    .prepare("SELECT status, created_at FROM order_events WHERE order_id = ? ORDER BY id")
+    .prepare(
+      "SELECT status, created_at FROM order_events WHERE order_id = ? ORDER BY id",
+    )
     .all(orderId);
   return { order, items, events };
 }
@@ -308,10 +329,10 @@ function seedIfEmpty(db) {
   ];
 
   const insertProduct = db.prepare(
-    "INSERT INTO products (name, category, price, stock) VALUES (?, ?, ?, ?)"
+    "INSERT INTO products (name, category, price, stock) VALUES (?, ?, ?, ?)",
   );
   const insertCustomer = db.prepare(
-    "INSERT INTO customers (name, phone, city, address) VALUES (?, ?, ?, ?)"
+    "INSERT INTO customers (name, phone, city, address) VALUES (?, ?, ?, ?)",
   );
   const fill = db.transaction(() => {
     for (const row of products) insertProduct.run(...row);
@@ -327,7 +348,7 @@ function seedIfEmpty(db) {
       { product_id: 7, qty: 2 },
     ],
     "call back after 6 pm",
-    "2026-09-21 10:15:00"
+    "2026-09-21 10:15:00",
   );
   const second = createOrder(
     db,
@@ -337,7 +358,7 @@ function seedIfEmpty(db) {
       { product_id: 9, qty: 1 },
     ],
     "",
-    "2026-09-23 16:40:00"
+    "2026-09-23 16:40:00",
   );
   changeStatus(db, second, "confirmed", "2026-09-23 17:05:00");
   const third = createOrder(
@@ -348,7 +369,7 @@ function seedIfEmpty(db) {
       { product_id: 5, qty: 2 },
     ],
     "leave it by the entrance",
-    "2026-09-28 12:05:00"
+    "2026-09-28 12:05:00",
   );
   changeStatus(db, third, "confirmed", "2026-09-28 15:00:00");
   changeStatus(db, third, "shipped", "2026-09-29 11:20:00");
@@ -360,7 +381,7 @@ function seedIfEmpty(db) {
       { product_id: 3, qty: 2 },
     ],
     "",
-    "2026-10-01 09:30:00"
+    "2026-10-01 09:30:00",
   );
   changeStatus(db, fourth, "confirmed", "2026-10-01 11:00:00");
   changeStatus(db, fourth, "shipped", "2026-10-01 14:10:00");
