@@ -13,6 +13,10 @@ What it does:
 - an open order (new or confirmed) can still be changed; a shipped one cannot
 - a customer page with that person’s orders
 - a short summary: orders by status, and products with three pieces or fewer
+- one shop login. The desk stays closed until someone signs in
+- pickup or courier. Courier adds 80 UAH to the total and stays on that receipt
+- an order that stays new or confirmed for more than two days is marked on the list
+- the status history stores the name of the person who was signed in
 
 ## Run
 
@@ -30,6 +34,8 @@ npm run dev
 ```
 
 Then open http://127.0.0.1:5173
+
+Sign in with login `desk` and password `shelf2026`. That account is created the first time the server starts.
 
 The API stays on http://127.0.0.1:5000. The React dev server forwards `/api` there.
 

@@ -89,7 +89,7 @@ export default function Orders() {
 
       {data ? (
         <p className="hint">
-          Found {data.orders.length}, total {money(data.totalSum)}. This is the filtered total, not the whole till.
+          Found {data.orders.length}, total {money(data.totalSum)}. A marked date has been new or confirmed for more than two days.
         </p>
       ) : null}
 
@@ -99,6 +99,7 @@ export default function Orders() {
             <tr>
               <th className="num">No.</th>
               <th>Date</th>
+              <th>Delivery</th>
               <th>Customer</th>
               <th>City</th>
               <th>Phone</th>
@@ -109,7 +110,8 @@ export default function Orders() {
             {data.orders.map((order) => (
               <tr key={order.id}>
                 <td className="num"><Link to={"/orders/" + order.id}>{order.id}</Link></td>
-                <td>{when(order.created_at)}</td>
+                <td className={order.waiting ? "wait" : undefined}>{when(order.created_at)}</td>
+                <td>{order.delivery}</td>
                 <td>{order.customer_name}</td>
                 <td>{order.city}</td>
                 <td>{order.phone}</td>

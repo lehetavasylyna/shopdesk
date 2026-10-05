@@ -5,6 +5,14 @@ const { addCustomer, getCustomer } = require("./customers");
 const { getProduct } = require("./products");
 
 const STATUSES = ["new", "confirmed", "shipped", "completed", "cancelled"];
+const COURIER_FEE = 80;
+const WAIT_MS = 2 * 24 * 60 * 60 * 1000;
+
+function quoteDelivery(value) {
+  const text = clean(value) || "pickup";
+  if (text !== "pickup" && text !== "courier") throw new ShopError("Pick pickup or courier");
+  return { delivery: text, fee: text === "courier" ? COURIER_FEE : 0 };
+}
 
 // Shipped and completed orders do not go backwards.
 const NEXT_STATUS = {
@@ -29,7 +37,7 @@ function orderLines(lines) {
   return merged;
 }
 
-function createOrder(db, customerId, lines, comment, createdAt) {
+function createOrder(db, customerId, lines, comment, createdAt, delivery) {
   customerId = asInt(customerId, "Choose a customer");
   comment = clean(comment);
   if (comment.length > 400) throw new ShopError("The comment is too long");
@@ -37,12 +45,13 @@ function createOrder(db, customerId, lines, comment, createdAt) {
 
   const merged = orderLines(lines || []);
   const created = createdAt || nowText();
+  const ship = quoteDelivery(delivery);
   const updateStock = db.prepare(
     "UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?"
   );
   const insertOrder = db.prepare(
-    `INSERT INTO orders (customer_id, status, comment, total, created_at)
-     VALUES (?, 'new', ?, ?, ?)`
+    `INSERT INTO orders (customer_id, status, comment, total, created_at, delivery, delivery_fee)
+     VALUES (?, 'new', ?, ?, ?, ?, ?)`
   );
   const insertItem = db.prepare(
     "INSERT INTO order_items (order_id, product_id, qty, price) VALUES (?, ?, ?, ?)"
@@ -70,7 +79,7 @@ function createOrder(db, customerId, lines, comment, createdAt) {
       prepared.push({ productId, qty, price: product.price });
     }
 
-    const info = insertOrder.run(customerId, comment, total, created);
+    const info = insertOrder.run(customerId, comment, total + ship.fee, created, ship.delivery, ship.fee);
     const orderId = Number(info.lastInsertRowid);
     for (const row of prepared) insertItem.run(orderId, row.productId, row.qty, row.price);
     insertEvent.run(orderId, created);
@@ -82,7 +91,7 @@ function createOrder(db, customerId, lines, comment, createdAt) {
 
 const OPEN_FOR_EDIT = ["new", "confirmed"];
 
-function updateOrder(db, orderId, lines, comment) {
+function updateOrder(db, orderId, lines, comment, delivery) {
   const order = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId);
   if (!order) throw new ShopError("Order not found");
   if (!OPEN_FOR_EDIT.includes(order.status)) {
@@ -91,6 +100,7 @@ function updateOrder(db, orderId, lines, comment) {
 
   comment = clean(comment);
   if (comment.length > 400) throw new ShopError("The comment is too long");
+  const ship = quoteDelivery(delivery || order.delivery);
   const merged = orderLines(lines || []);
 
   const oldItems = db.prepare("SELECT product_id, price FROM order_items WHERE order_id = ?").all(orderId);
@@ -105,7 +115,9 @@ function updateOrder(db, orderId, lines, comment) {
   const insertItem = db.prepare(
     "INSERT INTO order_items (order_id, product_id, qty, price) VALUES (?, ?, ?, ?)"
   );
-  const saveOrder = db.prepare("UPDATE orders SET comment = ?, total = ? WHERE id = ?");
+  const saveOrder = db.prepare(
+    "UPDATE orders SET comment = ?, total = ?, delivery = ?, delivery_fee = ? WHERE id = ?"
+  );
 
   const run = db.transaction(() => {
     const current = db.prepare("SELECT product_id, qty FROM order_items WHERE order_id = ?").all(orderId);
@@ -129,7 +141,7 @@ function updateOrder(db, orderId, lines, comment) {
       insertItem.run(orderId, productId, qty, price);
       total += price * qty;
     }
-    saveOrder.run(comment, total, orderId);
+    saveOrder.run(comment, total + ship.fee, ship.delivery, ship.fee, orderId);
   });
   run();
 }
@@ -143,10 +155,10 @@ function placeOrder(db, body) {
     throw new ShopError("Choose a customer or enter a new one");
   }
   const lines = Array.isArray(input.lines) ? input.lines : [];
-  return createOrder(db, customerId, lines, input.comment);
+  return createOrder(db, customerId, lines, input.comment, null, input.delivery);
 }
 
-function changeStatus(db, orderId, newStatus, when) {
+function changeStatus(db, orderId, newStatus, when, staffName) {
   const order = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId);
   if (!order) throw new ShopError("Order not found");
   if (!STATUSES.includes(newStatus)) throw new ShopError("Unknown status");
@@ -159,8 +171,9 @@ function changeStatus(db, orderId, newStatus, when) {
   const moment = when || nowText();
   const giveBack = db.prepare("UPDATE products SET stock = stock + ? WHERE id = ?");
   const setStatus = db.prepare("UPDATE orders SET status = ? WHERE id = ?");
+  const who = clean(staffName);
   const insertEvent = db.prepare(
-    "INSERT INTO order_events (order_id, status, created_at) VALUES (?, ?, ?)"
+    "INSERT INTO order_events (order_id, status, created_at, staff_name) VALUES (?, ?, ?, ?)"
   );
 
   const run = db.transaction(() => {
@@ -169,7 +182,7 @@ function changeStatus(db, orderId, newStatus, when) {
       for (const item of items) giveBack.run(item.qty, item.product_id);
     }
     setStatus.run(newStatus, orderId);
-    insertEvent.run(orderId, newStatus, moment);
+    insertEvent.run(orderId, newStatus, moment, who);
   });
   run();
 }
@@ -184,7 +197,7 @@ const SORTS = {
 function listOrders(db, status, query, extra) {
   const range = extra || {};
   let sql = `
-    SELECT o.id, o.status, o.comment, o.total, o.created_at,
+    SELECT o.id, o.status, o.comment, o.total, o.created_at, o.delivery, o.delivery_fee,
            c.name AS customer_name, c.phone, c.city,
            (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id) AS positions
     FROM orders o
@@ -212,7 +225,15 @@ function listOrders(db, status, query, extra) {
   if (to) rows = rows.filter((row) => String(row.created_at).slice(0, 10) <= to);
   const sort = SORTS[range.sort] ? range.sort : "newest";
   rows.sort(SORTS[sort]);
-  return rows;
+  const now = range.now || Date.now();
+  return rows.map((row) => Object.assign({}, row, { waiting: isWaiting(row, now) ? 1 : 0 }));
+}
+
+function isWaiting(row, now) {
+  if (row.status !== "new" && row.status !== "confirmed") return false;
+  const created = Date.parse(String(row.created_at).replace(" ", "T"));
+  if (Number.isNaN(created)) return false;
+  return now - created > WAIT_MS;
 }
 
 function dayLimit(value) {
@@ -248,13 +269,14 @@ function getOrder(db, orderId) {
     )
     .all(orderId);
   const events = db
-    .prepare("SELECT status, created_at FROM order_events WHERE order_id = ? ORDER BY id")
+    .prepare("SELECT status, created_at, staff_name FROM order_events WHERE order_id = ? ORDER BY id")
     .all(orderId);
   return { order, items, events };
 }
 
 module.exports = {
   STATUSES,
+  COURIER_FEE,
   NEXT_STATUS,
   createOrder,
   placeOrder,

@@ -26,7 +26,9 @@ CREATE TABLE IF NOT EXISTS orders (
         CHECK (status IN ('new', 'confirmed', 'shipped', 'completed', 'cancelled')),
     comment TEXT NOT NULL DEFAULT '',
     total INTEGER NOT NULL CHECK (total >= 0),
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    delivery TEXT NOT NULL DEFAULT 'pickup',
+    delivery_fee INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS order_items (
@@ -42,9 +44,23 @@ CREATE TABLE IF NOT EXISTS order_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     order_id INTEGER NOT NULL REFERENCES orders (id) ON DELETE CASCADE,
     status TEXT NOT NULL,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    staff_name TEXT NOT NULL DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders (status);
 CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders (customer_id);
 CREATE INDEX IF NOT EXISTS idx_items_order ON order_items (order_id);
+
+CREATE TABLE IF NOT EXISTS staff (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    login TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+    token TEXT PRIMARY KEY,
+    staff_id INTEGER NOT NULL REFERENCES staff (id),
+    created_at TEXT NOT NULL
+);

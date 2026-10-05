@@ -21,6 +21,7 @@ const {
   updateOrder,
 } = require("./orders");
 const { summary } = require("./summary");
+const { ensureStaff, signIn, signOut, staffFromRequest, writeSessionCookie } = require("./auth");
 
 function handle(fn) {
   return function (req, res, next) {
@@ -40,8 +41,51 @@ function paramId(req) {
   return Number(req.params.id);
 }
 
-function routes(db) {
+function routes(db, options) {
+  const auth = !options || options.auth !== false;
   const router = express.Router();
+  if (auth) ensureStaff(db);
+
+  router.post(
+    "/login",
+    handle((req, res) => {
+      const body = req.body || {};
+      const result = signIn(db, body.login, body.password);
+      writeSessionCookie(res, result.token);
+      res.json({ staff: result.staff });
+    })
+  );
+
+  router.post("/logout", (req, res) => {
+    signOut(db, req);
+    writeSessionCookie(res, "");
+    res.json({ ok: true });
+  });
+
+  router.get("/me", (req, res) => {
+    if (!auth) {
+      res.json({ staff: { id: 0, name: "Shop desk", login: "desk" } });
+      return;
+    }
+    const staff = staffFromRequest(db, req);
+    if (!staff) {
+      res.status(401).json({ error: "Sign in first" });
+      return;
+    }
+    res.json({ staff });
+  });
+
+  if (auth) {
+    router.use((req, res, next) => {
+      const staff = staffFromRequest(db, req);
+      if (staff) {
+        req.staff = staff;
+        next();
+        return;
+      }
+      res.status(401).json({ error: "Sign in first" });
+    });
+  }
 
   router.get("/summary", (req, res) => {
     res.json(summary(db));
@@ -95,7 +139,7 @@ function routes(db) {
     "/orders/:id",
     handle((req, res) => {
       const body = req.body || {};
-      updateOrder(db, paramId(req), body.lines, body.comment);
+      updateOrder(db, paramId(req), body.lines, body.comment, body.delivery);
       res.json({ ok: true });
     })
   );
@@ -103,7 +147,7 @@ function routes(db) {
   router.post(
     "/orders/:id/status",
     handle((req, res) => {
-      changeStatus(db, paramId(req), req.body && req.body.status);
+      changeStatus(db, paramId(req), req.body && req.body.status, null, req.staff && req.staff.name);
       res.json({ ok: true });
     })
   );

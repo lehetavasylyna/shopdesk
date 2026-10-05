@@ -14,6 +14,7 @@ export default function OrderPage() {
   const [products, setProducts] = useState([]);
   const [lines, setLines] = useState([]);
   const [comment, setComment] = useState("");
+  const [delivery, setDelivery] = useState("pickup");
 
   function load() {
     getOrder(id)
@@ -22,6 +23,7 @@ export default function OrderPage() {
         setStatus(data.nextStatuses[0] || "");
         setLines(data.items.map((item) => ({ product_id: String(item.product_id), qty: item.qty })));
         setComment(data.order.comment || "");
+        setDelivery(data.order.delivery || "pickup");
         setMissing(false);
       })
       .catch((err) => {
@@ -43,7 +45,7 @@ export default function OrderPage() {
     event.preventDefault();
     setNote("");
     setError("");
-    updateOrder(id, { lines, comment })
+    updateOrder(id, { lines, comment, delivery })
       .then(() => {
         setNote("Order updated");
         load();
@@ -107,6 +109,10 @@ export default function OrderPage() {
           <span>Status</span>
           <b><span className={"status s-" + order.status}>{order.status}</span></b>
         </div>
+        <div>
+          <span>Delivery</span>
+          <b>{order.delivery === "courier" ? "courier, " + money(order.delivery_fee) : "pickup"}</b>
+        </div>
       </div>
 
       <table>
@@ -125,6 +131,12 @@ export default function OrderPage() {
               <td className="money">{money(item.line_sum)}</td>
             </tr>
           ))}
+          {order.delivery_fee ? (
+            <tr>
+              <td colSpan="3">Courier</td>
+              <td className="money">{money(order.delivery_fee)}</td>
+            </tr>
+          ) : null}
           <tr>
             <td colSpan="3"><b>Total</b></td>
             <td className="money"><b>{money(order.total)}</b></td>
@@ -159,6 +171,12 @@ export default function OrderPage() {
           <p>
             <button type="button" onClick={() => setLines(lines.concat([{ product_id: "", qty: 1 }]))}>another line</button>
           </p>
+          <label>Delivery
+            <select value={delivery} onChange={(event) => setDelivery(event.target.value)}>
+              <option value="pickup">pickup</option>
+              <option value="courier">courier, 80 UAH</option>
+            </select>
+          </label>
           <label>Comment
             <textarea rows="3" value={comment} onChange={(event) => setComment(event.target.value)} />
           </label>
@@ -184,7 +202,7 @@ export default function OrderPage() {
       <h3>What happened</h3>
       <ul className="log">
         {pack.events.map((event, index) => (
-          <li key={index}>{when(event.created_at)} — {event.status}</li>
+          <li key={index}>{when(event.created_at)} — {event.status}{event.staff_name ? " — " + event.staff_name : ""}</li>
         ))}
       </ul>
     </>

@@ -15,6 +15,7 @@ export default function OrderForm() {
   const [city, setCity] = useState("Uzhhorod");
   const [address, setAddress] = useState("");
   const [comment, setComment] = useState("");
+  const [delivery, setDelivery] = useState("pickup");
   const [lines, setLines] = useState([EMPTY_LINE, EMPTY_LINE, EMPTY_LINE, EMPTY_LINE]);
   const [error, setError] = useState("");
   const [loaded, setLoaded] = useState(false);
@@ -43,6 +44,7 @@ export default function OrderForm() {
       city,
       address,
       comment,
+      delivery,
       lines,
     })
       .then((result) => navigate("/orders/" + result.id, { state: { note: "Order saved" } }))
@@ -86,6 +88,13 @@ export default function OrderForm() {
           <input type="text" value={address} onChange={(event) => setAddress(event.target.value)} />
         </label>
         </div>
+
+        <label>Delivery
+          <select value={delivery} onChange={(event) => setDelivery(event.target.value)}>
+            <option value="pickup">pickup</option>
+            <option value="courier">courier, 80 UAH</option>
+          </select>
+        </label>
 
         <h3>Products</h3>
         <div>

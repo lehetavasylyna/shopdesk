@@ -74,13 +74,14 @@ function main() {
   const product = (name) => productId.get(name).id;
   const customer = (name) => customerId.get(name).id;
 
-  function order(person, lines, comment, at) {
+  function order(person, lines, comment, at, delivery) {
     return createOrder(
       db,
       customer(person),
       lines.map((line) => ({ product_id: product(line[0]), qty: line[1] })),
       comment,
-      at
+      at,
+      delivery
     );
   }
 
@@ -107,7 +108,8 @@ function main() {
     "Irene Berg",
     [["Blanket 140x200", 1], ["Towel set, 2 pcs", 2]],
     "leave it by the entrance",
-    "2026-09-23 14:05:00"
+    "2026-09-23 14:05:00",
+    "courier"
   );
   move(irene, [
     ["confirmed", "2026-09-23 15:10:00"],
@@ -194,7 +196,8 @@ function main() {
     "Marta Shepa",
     [["Electric kettle 1.7 L", 1], ["Desk lamp", 1]],
     "leave with the neighbour",
-    "2026-10-01 09:50:00"
+    "2026-10-01 09:50:00",
+    "courier"
   );
   move(marta, [
     ["confirmed", "2026-10-01 10:20:00"],

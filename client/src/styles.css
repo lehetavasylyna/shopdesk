@@ -103,6 +103,38 @@ nav a.here {
   background: #f3e2c8;
 }
 
+button.nav-out {
+  background: transparent;
+  color: #f0e2d6;
+  border-color: transparent;
+  padding: 8px 14px;
+}
+
+button.nav-out:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.login {
+  max-width: 460px;
+  margin: 0 auto;
+}
+
+.loading {
+  margin: 32px;
+}
+
+input[type="password"] {
+  font: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border: 1px solid #ddcfbc;
+  background: #fff;
+  border-radius: 8px;
+  margin-top: 6px;
+}
+
 .page {
   width: 1080px;
   max-width: calc(100% - 40px);
@@ -276,6 +308,11 @@ tr:hover td.low {
   font-weight: 700;
 }
 
+td.wait,
+tr:hover td.wait {
+  background: #fde8e4;
+}
+
 .box {
   background: #f8f3ea;
   border-radius: 10px;
@@ -403,7 +440,7 @@ button.quiet {
 
 .facts {
   display: grid;
-  grid-template-columns: 1.4fr 1fr 1fr auto;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px;
   margin: 0 0 8px;
 }

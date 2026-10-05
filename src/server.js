@@ -5,13 +5,14 @@ const { routes } = require("./routes");
 
 function createApp(dbPath, options) {
   const seed = !options || options.seed !== false;
+  const auth = !options || options.auth !== false;
   const database = openDb(dbPath);
   prepare(database, seed);
 
   const app = express();
   app.locals.db = database;
   app.use(express.json());
-  app.use("/api", routes(database));
+  app.use("/api", routes(database, { auth }));
 
   app.use((req, res) => {
     res.status(404).json({ error: "Not found" });

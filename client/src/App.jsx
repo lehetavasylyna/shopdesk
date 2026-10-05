@@ -1,4 +1,7 @@
+import { useEffect, useState } from "react";
 import { NavLink, Route, Routes } from "react-router-dom";
+import { getMe, logout } from "./api";
+import Login from "./pages/Login";
 import Orders from "./pages/Orders";
 import OrderForm from "./pages/OrderForm";
 import OrderPage from "./pages/OrderPage";
@@ -14,6 +17,26 @@ function linkClass(props) {
 }
 
 export default function App() {
+  const [staff, setStaff] = useState(undefined);
+
+  useEffect(() => {
+    getMe()
+      .then((data) => setStaff(data.staff))
+      .catch(() => setStaff(null));
+  }, []);
+
+  if (staff === undefined) {
+    return <p className="hint loading">Loading...</p>;
+  }
+
+  if (!staff) {
+    return <Login onIn={setStaff} />;
+  }
+
+  function onOut() {
+    logout().then(() => setStaff(null)).catch(() => setStaff(null));
+  }
+
   return (
     <>
       <div className="top">
@@ -28,6 +51,7 @@ export default function App() {
             <NavLink to="/products" className={linkClass}>Products</NavLink>
             <NavLink to="/customers" className={linkClass}>Customers</NavLink>
             <NavLink to="/summary" className={linkClass}>Summary</NavLink>
+            <button type="button" className="nav-out" onClick={onOut}>Sign out</button>
           </nav>
         </div>
       </div>

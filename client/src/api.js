@@ -80,3 +80,15 @@ export function getCustomer(id) {
 export function createCustomer(body) {
   return send("/api/customers", "POST", body);
 }
+
+export function getMe() {
+  return request("/api/me");
+}
+
+export function login(body) {
+  return send("/api/login", "POST", body);
+}
+
+export function logout() {
+  return send("/api/logout", "POST", {});
+}

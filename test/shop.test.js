@@ -287,7 +287,7 @@ test("summary and a customer's orders", () => {
 test("api opens and a new order reduces the lamp stock", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "polychka-"));
   const dbPath = path.join(dir, "shop.db");
-  const app = createApp(dbPath, { seed: true });
+  const app = createApp(dbPath, { seed: true, auth: false });
   const server = app.listen(0);
   await new Promise((resolve) => server.once("listening", resolve));
   const port = server.address().port;
@@ -339,7 +339,7 @@ test("api opens and a new order reduces the lamp stock", async () => {
 test("the api does not save an order when stock is short", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "polychka-"));
   const dbPath = path.join(dir, "shop.db");
-  const app = createApp(dbPath, { seed: false });
+  const app = createApp(dbPath, { seed: false, auth: false });
   addItem(app.locals.db, "Sponge", 45, 2);
   addBuyer(app.locals.db);
   const server = app.listen(0);
@@ -360,6 +360,81 @@ test("the api does not save an order when stock is short", async () => {
     assert.ok(data.error.includes("Not enough"));
     assert.equal(app.locals.db.prepare("SELECT stock FROM products WHERE id = 1").get().stock, 2);
     assert.equal(app.locals.db.prepare("SELECT COUNT(*) AS n FROM orders").get().n, 0);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    app.locals.db.close();
+  }
+});
+
+test("courier adds 80, and an open order older than two days is waiting", () => {
+  const database = tempDb(false);
+  try {
+    const buyer = addBuyer(database);
+    const item = addItem(database, "Sponge", 45, 5);
+    const orderId = createOrder(
+      database,
+      buyer,
+      [{ product_id: item, qty: 2 }],
+      "",
+      "2026-09-21 10:00:00",
+      "courier"
+    );
+    let pack = getOrder(database, orderId);
+    assert.equal(pack.order.delivery, "courier");
+    assert.equal(pack.order.delivery_fee, 80);
+    assert.equal(pack.order.total, 170);
+
+    updateOrder(database, orderId, [{ product_id: item, qty: 2 }], "", "pickup");
+    pack = getOrder(database, orderId);
+    assert.equal(pack.order.total, 90);
+    assert.equal(pack.order.delivery_fee, 0);
+
+    changeStatus(database, orderId, "confirmed", "2026-09-21 12:00:00", "Shop desk");
+    pack = getOrder(database, orderId);
+    assert.equal(pack.events[1].staff_name, "Shop desk");
+    const later = Date.parse("2026-09-25T12:00:00");
+    assert.equal(listOrders(database, null, "", { now: later })[0].waiting, 1);
+
+    changeStatus(database, orderId, "shipped", "2026-09-25 13:00:00", "Shop desk");
+    assert.equal(listOrders(database, null, "", { now: later })[0].waiting, 0);
+    assert.throws(() => createOrder(database, buyer, [{ product_id: item, qty: 1 }], "", null, "post"), /courier/);
+  } finally {
+    database.close();
+  }
+});
+
+test("the desk stays closed until the password is right", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "polychka-"));
+  const dbPath = path.join(dir, "shop.db");
+  const app = createApp(dbPath, { seed: false, auth: true });
+  const server = app.listen(0);
+  await new Promise((resolve) => server.once("listening", resolve));
+  const base = "http://127.0.0.1:" + server.address().port;
+
+  try {
+    const closed = await fetch(base + "/api/orders");
+    assert.equal(closed.status, 401);
+
+    const wrong = await fetch(base + "/api/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ login: "desk", password: "nope" }),
+    });
+    assert.equal(wrong.status, 400);
+
+    const ok = await fetch(base + "/api/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ login: "desk", password: "shelf2026" }),
+    });
+    assert.equal(ok.status, 200);
+    const cookie = ok.headers.get("set-cookie").split(";")[0];
+    const open = await fetch(base + "/api/products", { headers: { cookie } });
+    assert.equal(open.status, 200);
+
+    await fetch(base + "/api/logout", { method: "POST", headers: { cookie } });
+    const again = await fetch(base + "/api/orders", { headers: { cookie } });
+    assert.equal(again.status, 401);
   } finally {
     await new Promise((resolve) => server.close(resolve));
     app.locals.db.close();
