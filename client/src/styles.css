@@ -371,6 +371,11 @@ textarea:focus {
   border-color: #c47a62;
 }
 
+.fields input[readonly] {
+  background: #f3efe6;
+  color: #3a2a22;
+}
+
 .line {
   display: flex;
   gap: 8px;

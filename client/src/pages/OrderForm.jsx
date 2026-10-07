@@ -12,7 +12,7 @@ export default function OrderForm() {
   const [customerId, setCustomerId] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [city, setCity] = useState("Uzhhorod");
+  const [city, setCity] = useState("");
   const [address, setAddress] = useState("");
   const [comment, setComment] = useState("");
   const [delivery, setDelivery] = useState("pickup");
@@ -36,6 +36,24 @@ export default function OrderForm() {
       })
       .catch((err) => setError(err.message));
   }, []);
+
+  function onCustomer(event) {
+    const value = event.target.value;
+    setCustomerId(value);
+    if (value === "" || value === "new") {
+      setName("");
+      setPhone("");
+      setCity(value === "new" ? "Uzhhorod" : "");
+      setAddress("");
+      return;
+    }
+    const customer = customers.find((item) => String(item.id) === value);
+    if (!customer) return;
+    setName(customer.name);
+    setPhone(customer.phone);
+    setCity(customer.city || "");
+    setAddress(customer.address || "");
+  }
 
   function changeLine(index, field, value) {
     setLines(
@@ -82,7 +100,7 @@ export default function OrderForm() {
           <select
             id="customer_id"
             value={customerId}
-            onChange={(event) => setCustomerId(event.target.value)}
+            onChange={onCustomer}
           >
             <option value="">— choose —</option>
             {customers.map((customer) => (
@@ -95,7 +113,11 @@ export default function OrderForm() {
         </label>
 
         <p className="hint">
-          Fill in the fields below only if you chose “new customer”.
+          {customerId === "new"
+            ? "Enter the new customer below."
+            : customerId
+              ? "Taken from the customer you chose."
+              : "Choose a customer, or pick “new customer” and fill these in."}
         </p>
         <div className="fields">
           <label>
@@ -103,6 +125,7 @@ export default function OrderForm() {
             <input
               type="text"
               value={name}
+              readOnly={customerId !== "new"}
               onChange={(event) => setName(event.target.value)}
             />
           </label>
@@ -112,6 +135,7 @@ export default function OrderForm() {
               type="text"
               value={phone}
               placeholder="050 000 00 00"
+              readOnly={customerId !== "new"}
               onChange={(event) => setPhone(event.target.value)}
             />
           </label>
@@ -120,6 +144,7 @@ export default function OrderForm() {
             <input
               type="text"
               value={city}
+              readOnly={customerId !== "new"}
               onChange={(event) => setCity(event.target.value)}
             />
           </label>
@@ -128,6 +153,7 @@ export default function OrderForm() {
             <input
               type="text"
               value={address}
+              readOnly={customerId !== "new"}
               onChange={(event) => setAddress(event.target.value)}
             />
           </label>
