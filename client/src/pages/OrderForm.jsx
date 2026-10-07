@@ -16,12 +16,19 @@ export default function OrderForm() {
   const [address, setAddress] = useState("");
   const [comment, setComment] = useState("");
   const [delivery, setDelivery] = useState("pickup");
-  const [lines, setLines] = useState([EMPTY_LINE, EMPTY_LINE, EMPTY_LINE, EMPTY_LINE]);
+  const [lines, setLines] = useState([
+    EMPTY_LINE,
+    EMPTY_LINE,
+    EMPTY_LINE,
+    EMPTY_LINE,
+  ]);
   const [error, setError] = useState("");
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    getCustomers().then((data) => setCustomers(data.customers)).catch((err) => setError(err.message));
+    getCustomers()
+      .then((data) => setCustomers(data.customers))
+      .catch((err) => setError(err.message));
     getProducts()
       .then((data) => {
         setProducts(data.products);
@@ -31,7 +38,11 @@ export default function OrderForm() {
   }, []);
 
   function changeLine(index, field, value) {
-    setLines(lines.map((line, i) => (i === index ? { ...line, [field]: value } : line)));
+    setLines(
+      lines.map((line, i) =>
+        i === index ? { ...line, [field]: value } : line,
+      ),
+    );
   }
 
   function onSubmit(event) {
@@ -47,7 +58,9 @@ export default function OrderForm() {
       delivery,
       lines,
     })
-      .then((result) => navigate("/orders/" + result.id, { state: { note: "Order saved" } }))
+      .then((result) =>
+        navigate("/orders/" + result.id, { state: { note: "Order saved" } }),
+      )
       .catch((err) => setError(err.message));
   }
 
@@ -56,41 +69,76 @@ export default function OrderForm() {
       <div className="head">
         <div>
           <h2>New order</h2>
-          <p className="hint">The total is taken from the price in the database. Stock goes down as soon as this is saved.</p>
         </div>
       </div>
       {error ? <p className="flash err">{error}</p> : null}
-      {loaded && !products.length ? <p className="flash err">Add at least one product first.</p> : null}
+      {loaded && !products.length ? (
+        <p className="flash err">Add at least one product first.</p>
+      ) : null}
 
       <form className="box" onSubmit={onSubmit}>
-        <label htmlFor="customer_id">Customer
-          <select id="customer_id" value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
+        <label htmlFor="customer_id">
+          Customer
+          <select
+            id="customer_id"
+            value={customerId}
+            onChange={(event) => setCustomerId(event.target.value)}
+          >
             <option value="">— choose —</option>
             {customers.map((customer) => (
-              <option key={customer.id} value={customer.id}>{customer.name}, {customer.phone}</option>
+              <option key={customer.id} value={customer.id}>
+                {customer.name}, {customer.phone}
+              </option>
             ))}
             <option value="new">new customer</option>
           </select>
         </label>
 
-        <p className="hint">Fill in the fields below only if you chose “new customer”.</p>
+        <p className="hint">
+          Fill in the fields below only if you chose “new customer”.
+        </p>
         <div className="fields">
-        <label>Name
-          <input type="text" value={name} onChange={(event) => setName(event.target.value)} />
-        </label>
-        <label>Phone
-          <input type="text" value={phone} placeholder="050 000 00 00" onChange={(event) => setPhone(event.target.value)} />
-        </label>
-        <label>City
-          <input type="text" value={city} onChange={(event) => setCity(event.target.value)} />
-        </label>
-        <label>Address
-          <input type="text" value={address} onChange={(event) => setAddress(event.target.value)} />
-        </label>
+          <label>
+            Name
+            <input
+              type="text"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </label>
+          <label>
+            Phone
+            <input
+              type="text"
+              value={phone}
+              placeholder="050 000 00 00"
+              onChange={(event) => setPhone(event.target.value)}
+            />
+          </label>
+          <label>
+            City
+            <input
+              type="text"
+              value={city}
+              onChange={(event) => setCity(event.target.value)}
+            />
+          </label>
+          <label>
+            Address
+            <input
+              type="text"
+              value={address}
+              onChange={(event) => setAddress(event.target.value)}
+            />
+          </label>
         </div>
 
-        <label>Delivery
-          <select value={delivery} onChange={(event) => setDelivery(event.target.value)}>
+        <label>
+          Delivery
+          <select
+            value={delivery}
+            onChange={(event) => setDelivery(event.target.value)}
+          >
             <option value="pickup">pickup</option>
             <option value="courier">courier, 80 UAH</option>
           </select>
@@ -100,11 +148,17 @@ export default function OrderForm() {
         <div>
           {lines.map((line, index) => (
             <div className="line" key={index}>
-              <select value={line.product_id} onChange={(event) => changeLine(index, "product_id", event.target.value)}>
+              <select
+                value={line.product_id}
+                onChange={(event) =>
+                  changeLine(index, "product_id", event.target.value)
+                }
+              >
                 <option value="">— product —</option>
                 {products.map((product) => (
                   <option key={product.id} value={product.id}>
-                    {product.name} — {money(product.price)}, stock {product.stock}
+                    {product.name} — {money(product.price)}, stock{" "}
+                    {product.stock}
                   </option>
                 ))}
               </select>
@@ -113,19 +167,35 @@ export default function OrderForm() {
                 type="number"
                 min="1"
                 value={line.qty}
-                onChange={(event) => changeLine(index, "qty", event.target.value)}
+                onChange={(event) =>
+                  changeLine(index, "qty", event.target.value)
+                }
               />
             </div>
           ))}
         </div>
         <p>
-          <button type="button" onClick={() => setLines(lines.concat([{ ...EMPTY_LINE }]))}>another line</button>
+          <button
+            type="button"
+            onClick={() => setLines(lines.concat([{ ...EMPTY_LINE }]))}
+          >
+            another line
+          </button>
         </p>
 
-        <label>Comment, if you need one
-          <textarea rows="3" value={comment} onChange={(event) => setComment(event.target.value)} />
+        <label>
+          Comment, if you need one
+          <textarea
+            rows="3"
+            value={comment}
+            onChange={(event) => setComment(event.target.value)}
+          />
         </label>
-        <p><button className="primary" type="submit">Save order</button></p>
+        <p>
+          <button className="primary" type="submit">
+            Save order
+          </button>
+        </p>
       </form>
     </>
   );

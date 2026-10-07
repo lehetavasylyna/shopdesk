@@ -20,9 +20,10 @@ export default function Products() {
       <div className="head">
         <div>
           <h2>Products</h2>
-          <p className="hint">Yellow means three pieces or fewer are left.</p>
         </div>
-        <Link className="button primary" to="/products/new">New product</Link>
+        <Link className="button primary" to="/products/new">
+          New product
+        </Link>
       </div>
       {note ? <p className="flash ok">{note}</p> : null}
       {error ? <p className="flash err">{error}</p> : null}
@@ -41,8 +42,12 @@ export default function Products() {
                 <td>{product.name}</td>
                 <td>{product.category}</td>
                 <td className="money">{money(product.price)}</td>
-                <td className={product.stock <= 3 ? "low" : undefined}>{product.stock}</td>
-                <td><Link to={"/products/" + product.id}>edit</Link></td>
+                <td className={product.stock <= 3 ? "low" : undefined}>
+                  {product.stock}
+                </td>
+                <td>
+                  <Link to={"/products/" + product.id}>edit</Link>
+                </td>
               </tr>
             ))}
           </tbody>

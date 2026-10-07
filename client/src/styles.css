@@ -341,6 +341,14 @@ label {
   margin-bottom: 0;
 }
 
+.box.move {
+  padding: 24px;
+}
+
+.box.move > label {
+  margin-bottom: 18px;
+}
+
 input[type="text"],
 input[type="number"],
 input[type="date"],

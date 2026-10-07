@@ -185,7 +185,7 @@ export default function OrderPage() {
       ) : null}
 
       {pack.nextStatuses.length ? (
-        <form className="box" onSubmit={onSubmit}>
+        <form className="box move" onSubmit={onSubmit}>
           <label>Move to
             <select value={status} onChange={(event) => setStatus(event.target.value)}>
               {pack.nextStatuses.map((item) => (

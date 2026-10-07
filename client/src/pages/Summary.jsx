@@ -14,7 +14,11 @@ export default function Summary() {
   }, []);
 
   if (!data) {
-    return error ? <p className="flash err">{error}</p> : <p className="hint">Loading...</p>;
+    return error ? (
+      <p className="flash err">{error}</p>
+    ) : (
+      <p className="hint">Loading...</p>
+    );
   }
 
   return (
@@ -22,7 +26,6 @@ export default function Summary() {
       <div className="head">
         <div>
           <h2>Summary</h2>
-          <p className="hint">Cancelled orders are counted, but that money did not come in.</p>
         </div>
       </div>
       {error ? <p className="flash err">{error}</p> : null}
@@ -44,7 +47,9 @@ export default function Summary() {
           </tr>
           {data.byStatus.map((row) => (
             <tr key={row.status}>
-              <td><span className={"status s-" + row.status}>{row.status}</span></td>
+              <td>
+                <span className={"status s-" + row.status}>{row.status}</span>
+              </td>
               <td>{row.count}</td>
               <td className="money">{money(row.total)}</td>
             </tr>
@@ -53,8 +58,12 @@ export default function Summary() {
       </table>
 
       <h3>Low stock</h3>
-      <p className="hint">Three pieces or fewer. The same yellow mark is on the product list.</p>
-      {data.lowStock.length === 0 ? <p className="hint">Nothing is that low.</p> : null}
+      <p className="hint">
+        Three pieces or fewer. The same yellow mark is on the product list.
+      </p>
+      {data.lowStock.length === 0 ? (
+        <p className="hint">Nothing is that low.</p>
+      ) : null}
       <table>
         <tbody>
           <tr>
@@ -65,7 +74,9 @@ export default function Summary() {
           </tr>
           {data.lowStock.map((product) => (
             <tr key={product.id}>
-              <td><Link to={"/products/" + product.id}>{product.name}</Link></td>
+              <td>
+                <Link to={"/products/" + product.id}>{product.name}</Link>
+              </td>
               <td>{product.category}</td>
               <td className="low">{product.stock}</td>
               <td className="money">{money(product.price)}</td>

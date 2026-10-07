@@ -7,9 +7,10 @@ const { openDb, prepare } = require("../src/db");
 const { showDate } = require("../src/time");
 const { addCustomer } = require("../src/customers");
 const { addProduct, deleteProduct, getProduct, updateProduct } = require("../src/products");
-const { changeStatus, createOrder, getOrder, listOrders, updateOrder } = require("../src/orders");
+const { changeStatus, createOrder, getOrder, listOrders, placeOrder, updateOrder } = require("../src/orders");
 const { customerWithOrders } = require("../src/customers");
 const { summary } = require("../src/summary");
+const { ensureStaff } = require("../src/auth");
 const { createApp } = require("../src/server");
 
 function tempDb(seed) {
@@ -30,6 +31,8 @@ function addItem(database, name, price, stock) {
 
 test("date is shown as day.month.year", () => {
   assert.equal(showDate("2026-09-21 10:15:00"), "21.09.2026 10:15");
+  assert.equal(showDate("2026-09-21"), "21.09.2026");
+  assert.equal(showDate(""), "");
 });
 
 test("a short phone and a zero price are rejected", () => {
@@ -435,6 +438,383 @@ test("the desk stays closed until the password is right", async () => {
     await fetch(base + "/api/logout", { method: "POST", headers: { cookie } });
     const again = await fetch(base + "/api/orders", { headers: { cookie } });
     assert.equal(again.status, 401);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    app.locals.db.close();
+  }
+});
+
+test("a customer needs a real name, and an empty city becomes Uzhhorod", () => {
+  const database = tempDb(false);
+  try {
+    assert.throws(() => addCustomer(database, "A", "0501112233", "Chop", "1 Street"), /name/);
+    assert.throws(() => addCustomer(database, "Olga Test", "12345", "Chop", ""), /10/);
+    const id = addCustomer(database, "  Olga Test  ", "050-111-22-33", "  ", "  ");
+    const row = database.prepare("SELECT * FROM customers WHERE id = ?").get(id);
+    assert.equal(row.name, "Olga Test");
+    assert.equal(row.phone, "050-111-22-33");
+    assert.equal(row.city, "Uzhhorod");
+    assert.equal(row.address, "");
+  } finally {
+    database.close();
+  }
+});
+
+test("a product must come from the list, with a whole price and a stock that is not negative", () => {
+  const database = tempDb(false);
+  try {
+    assert.throws(() => addProduct(database, "X", "Household", 45, 1), /name/);
+    assert.throws(() => addProduct(database, "Sponge", "Garden", 45, 1), /category/);
+    assert.throws(() => addProduct(database, "Sponge", "Household", "12.5", 1), /whole number/);
+    assert.throws(() => addProduct(database, "Sponge", "Household", 45, -1), /negative/);
+    assert.throws(() => updateProduct(database, 99, "Sponge", "Household", 45, 1), /not found/);
+    assert.throws(() => deleteProduct(database, 99), /not found/);
+    assert.equal(database.prepare("SELECT COUNT(*) AS n FROM products").get().n, 0);
+  } finally {
+    database.close();
+  }
+});
+
+test("an order needs a real customer, a short comment and a positive quantity", () => {
+  const database = tempDb(false);
+  try {
+    const item = addItem(database);
+    assert.throws(() => createOrder(database, 99, [{ product_id: item, qty: 1 }]), /does not exist/);
+    const buyer = addBuyer(database);
+    assert.throws(() => createOrder(database, buyer, [{ product_id: item, qty: 0 }]), /greater than zero/);
+    assert.throws(() => createOrder(database, buyer, [{ product_id: item, qty: -2 }]), /greater than zero/);
+    assert.throws(() => createOrder(database, buyer, [{ product_id: 99, qty: 1 }]), /not found/);
+    assert.throws(
+      () => createOrder(database, buyer, [{ product_id: item, qty: 1 }], "x".repeat(401)),
+      /too long/
+    );
+    assert.throws(() => placeOrder(database, { lines: [{ product_id: item, qty: 1 }] }), /Choose a customer/);
+    assert.equal(database.prepare("SELECT COUNT(*) AS n FROM orders").get().n, 0);
+    assert.equal(getProduct(database, item).stock, 5);
+  } finally {
+    database.close();
+  }
+});
+
+test("a new customer stays even when the order does not fit on the shelf", () => {
+  const database = tempDb(false);
+  try {
+    const item = addItem(database, "Sponge", 45, 1);
+    assert.throws(
+      () =>
+        placeOrder(database, {
+          customer_id: "new",
+          name: "Nina Harris",
+          phone: "0509998877",
+          city: "Chop",
+          address: "1 Street",
+          lines: [{ product_id: item, qty: 5 }],
+        }),
+      /Not enough/
+    );
+    const customers = database.prepare("SELECT name, city FROM customers").all();
+    assert.deepEqual(customers, [{ name: "Nina Harris", city: "Chop" }]);
+    assert.equal(database.prepare("SELECT COUNT(*) AS n FROM orders").get().n, 0);
+    assert.equal(getProduct(database, item).stock, 1);
+  } finally {
+    database.close();
+  }
+});
+
+test("the full path ends at completed, and the taken stock is not returned", () => {
+  const database = tempDb(false);
+  try {
+    const buyer = addBuyer(database);
+    const item = addItem(database, "Sponge", 45, 5);
+    const orderId = createOrder(database, buyer, [{ product_id: item, qty: 2 }]);
+    changeStatus(database, orderId, "confirmed", "2026-09-22 09:00:00", "Shop desk");
+    changeStatus(database, orderId, "shipped", "2026-09-22 11:00:00", "Shop desk");
+    changeStatus(database, orderId, "completed", "2026-09-23 15:00:00", "Shop desk");
+
+    const pack = getOrder(database, orderId);
+    assert.equal(pack.order.status, "completed");
+    assert.equal(getProduct(database, item).stock, 3);
+    assert.deepEqual(
+      pack.events.map((row) => row.status),
+      ["new", "confirmed", "shipped", "completed"]
+    );
+    assert.equal(pack.events[3].staff_name, "Shop desk");
+
+    assert.throws(() => changeStatus(database, orderId, "completed"), /already/);
+    assert.throws(() => changeStatus(database, orderId, "cancelled"), /Cannot/);
+    assert.throws(() => changeStatus(database, orderId, "shipped"), /Cannot/);
+    assert.throws(() => changeStatus(database, orderId, "lost"), /Unknown status/);
+    assert.throws(() => changeStatus(database, 99, "confirmed"), /not found/);
+    assert.throws(() => updateOrder(database, orderId, [{ product_id: item, qty: 1 }], ""), /on its way/);
+    assert.equal(getProduct(database, item).stock, 3);
+  } finally {
+    database.close();
+  }
+});
+
+test("taking a line off an open order puts that stock back", () => {
+  const database = tempDb(false);
+  try {
+    const buyer = addBuyer(database);
+    const sponge = addItem(database, "Sponge", 45, 5);
+    const soap = addItem(database, "Soap", 80, 2);
+    const orderId = createOrder(database, buyer, [
+      { product_id: sponge, qty: 2 },
+      { product_id: soap, qty: 1 },
+    ]);
+    updateOrder(database, orderId, [{ product_id: soap, qty: 1 }], "only soap");
+
+    const pack = getOrder(database, orderId);
+    assert.equal(pack.items.length, 1);
+    assert.equal(pack.items[0].product_id, soap);
+    assert.equal(pack.order.total, 80);
+    assert.equal(getProduct(database, sponge).stock, 5);
+    assert.equal(getProduct(database, soap).stock, 1);
+
+    assert.throws(
+      () =>
+        updateOrder(
+          database,
+          orderId,
+          [
+            { product_id: soap, qty: 1 },
+            { product_id: sponge, qty: 9 },
+          ],
+          "too many"
+        ),
+      /Sponge/
+    );
+    assert.equal(getProduct(database, sponge).stock, 5);
+    assert.equal(getProduct(database, soap).stock, 1);
+    assert.equal(getOrder(database, orderId).order.comment, "only soap");
+  } finally {
+    database.close();
+  }
+});
+
+test("search by the order number, and two days on the dot is not yet waiting", () => {
+  const database = tempDb(false);
+  try {
+    const buyer = addBuyer(database, "Olga Test", "0670000000");
+    const item = addItem(database);
+    const early = createOrder(database, buyer, [{ product_id: item, qty: 1 }], "first", "2026-09-21 10:00:00");
+    const later = createOrder(database, buyer, [{ product_id: item, qty: 1 }], "second", "2026-09-28 10:00:00");
+
+    assert.equal(listOrders(database, null, String(early)).length, 1);
+    assert.equal(listOrders(database, null, String(early))[0].id, early);
+
+    const oldest = listOrders(database, null, "", { sort: "oldest" });
+    assert.deepEqual(
+      oldest.map((row) => row.id),
+      [early, later]
+    );
+    const richest = listOrders(database, null, "", { sort: "total-desc" });
+    assert.equal(richest[0].id, later);
+    assert.equal(richest[1].id, early);
+
+    const both = listOrders(database, null, "", { from: "21.09.2026" });
+    assert.equal(both.length, 2);
+
+    const created = Date.parse("2026-09-21T10:00:00");
+    const twoDays = 2 * 24 * 60 * 60 * 1000;
+    const onTheDot = listOrders(database, null, String(early), { now: created + twoDays });
+    assert.equal(onTheDot[0].waiting, 0);
+    const justAfter = listOrders(database, null, String(early), { now: created + twoDays + 1 });
+    assert.equal(justAfter[0].waiting, 1);
+  } finally {
+    database.close();
+  }
+});
+
+test("summary lists every status, and three left on the shelf is already low", () => {
+  const database = tempDb(false);
+  try {
+    addItem(database, "Lamp", 650, 3);
+    addItem(database, "Iron", 1190, 4);
+    const report = summary(database);
+    assert.deepEqual(
+      report.byStatus.map((row) => row.status),
+      ["new", "confirmed", "shipped", "completed", "cancelled"]
+    );
+    assert.ok(report.byStatus.every((row) => row.count === 0 && row.total === 0));
+    assert.deepEqual(
+      report.lowStock.map((row) => row.name),
+      ["Lamp"]
+    );
+  } finally {
+    database.close();
+  }
+});
+
+test("an older shop file receives delivery and the staff name", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "polychka-"));
+  const database = openDb(path.join(dir, "shop.db"));
+  try {
+    database.exec(`
+      CREATE TABLE customers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        city TEXT NOT NULL DEFAULT 'Uzhhorod',
+        address TEXT NOT NULL DEFAULT ''
+      );
+      CREATE TABLE products (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        category TEXT NOT NULL,
+        price INTEGER NOT NULL,
+        stock INTEGER NOT NULL
+      );
+      CREATE TABLE orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        customer_id INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'new',
+        comment TEXT NOT NULL DEFAULT '',
+        total INTEGER NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE order_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER NOT NULL,
+        product_id INTEGER NOT NULL,
+        qty INTEGER NOT NULL,
+        price INTEGER NOT NULL
+      );
+      CREATE TABLE order_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+    `);
+    prepare(database, false);
+    const orderCols = database.prepare("PRAGMA table_info(orders)").all().map((column) => column.name);
+    const eventCols = database.prepare("PRAGMA table_info(order_events)").all().map((column) => column.name);
+    assert.ok(orderCols.includes("delivery"));
+    assert.ok(orderCols.includes("delivery_fee"));
+    assert.ok(eventCols.includes("staff_name"));
+  } finally {
+    database.close();
+  }
+});
+
+test("the database itself refuses a broken row, and a customer with an order stays", () => {
+  const database = tempDb(false);
+  try {
+    const buyer = addBuyer(database);
+    const item = addItem(database);
+    createOrder(database, buyer, [{ product_id: item, qty: 1 }]);
+    assert.throws(() =>
+      database.prepare("INSERT INTO products (name, category, price, stock) VALUES ('Bad', 'Household', 0, 1)").run()
+    );
+    assert.throws(() =>
+      database
+        .prepare("INSERT INTO products (name, category, price, stock) VALUES ('Bad', 'Household', 10, -1)")
+        .run()
+    );
+    assert.throws(() =>
+      database
+        .prepare(
+          "INSERT INTO orders (customer_id, status, total, created_at) VALUES (?, 'lost', 10, '2026-09-21 10:00:00')"
+        )
+        .run(buyer)
+    );
+    assert.throws(() => database.prepare("DELETE FROM customers WHERE id = ?").run(buyer));
+    assert.equal(database.prepare("SELECT COUNT(*) AS n FROM customers").get().n, 1);
+  } finally {
+    database.close();
+  }
+});
+
+test("the desk password is stored as a hash, and the account is created once", () => {
+  const database = tempDb(false);
+  try {
+    ensureStaff(database);
+    ensureStaff(database);
+    const rows = database.prepare("SELECT login, password_hash FROM staff").all();
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].login, "desk");
+    assert.notEqual(rows[0].password_hash, "shelf2026");
+    assert.equal(rows[0].password_hash.includes(":"), true);
+  } finally {
+    database.close();
+  }
+});
+
+test("api saves a product, refuses a bad one, and records who moved the status", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "polychka-"));
+  const app = createApp(path.join(dir, "shop.db"), { seed: false, auth: true });
+  const server = app.listen(0);
+  await new Promise((resolve) => server.once("listening", resolve));
+  const base = "http://127.0.0.1:" + server.address().port;
+
+  try {
+    const signed = await fetch(base + "/api/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ login: "desk", password: "shelf2026" }),
+    });
+    const cookie = signed.headers.get("set-cookie").split(";")[0];
+    const headers = { "content-type": "application/json", cookie };
+
+    const me = await fetch(base + "/api/me", { headers: { cookie } });
+    assert.equal(me.status, 200);
+    assert.equal((await me.json()).staff.login, "desk");
+
+    const missing = await fetch(base + "/api/nowhere", { headers: { cookie } });
+    assert.equal(missing.status, 404);
+
+    const bad = await fetch(base + "/api/products", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ name: "Sponge", category: "Garden", price: 45, stock: 5 }),
+    });
+    assert.equal(bad.status, 400);
+
+    const made = await fetch(base + "/api/products", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ name: "Sponge", category: "Household", price: 45, stock: 5 }),
+    });
+    assert.equal(made.status, 201);
+    const productId = (await made.json()).id;
+
+    const buyer = await fetch(base + "/api/customers", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ name: "Olga Test", phone: "0501112233", city: "Uzhhorod", address: "3 Street" }),
+    });
+    assert.equal(buyer.status, 201);
+
+    const created = await fetch(base + "/api/orders", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        customer_id: (await buyer.json()).id,
+        lines: [{ product_id: productId, qty: 1 }],
+      }),
+    });
+    assert.equal(created.status, 201);
+    const orderId = (await created.json()).id;
+
+    const moved = await fetch(base + "/api/orders/" + orderId + "/status", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ status: "confirmed" }),
+    });
+    assert.equal(moved.status, 200);
+    const pack = await (await fetch(base + "/api/orders/" + orderId, { headers: { cookie } })).json();
+    assert.equal(pack.order.status, "confirmed");
+    assert.equal(pack.events[1].staff_name, "Shop desk");
+    assert.deepEqual(pack.nextStatuses, ["shipped", "cancelled"]);
+
+    const list = await (await fetch(base + "/api/orders", { headers: { cookie } })).json();
+    assert.equal(list.totalSum, 45);
+
+    const removed = await fetch(base + "/api/products/" + productId, { method: "DELETE", headers: { cookie } });
+    const removedBody = await removed.json();
+    assert.equal(removed.status, 400);
+    assert.ok(removedBody.error.includes("order"));
   } finally {
     await new Promise((resolve) => server.close(resolve));
     app.locals.db.close();
