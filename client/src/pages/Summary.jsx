@@ -21,69 +21,97 @@ export default function Summary() {
     );
   }
 
-  return (
-    <>
-      <div className="head">
-        <div>
-          <h2>Summary</h2>
-        </div>
-      </div>
-      {error ? <p className="flash err">{error}</p> : null}
-      <div className="stats">
-        {data.byStatus.map((row) => (
-          <div className="stat" key={row.status}>
-            <span className={"status s-" + row.status}>{row.status}</span>
-            <b>{row.count}</b>
-            <span className="quiet">{money(row.total)}</span>
-          </div>
-        ))}
-      </div>
-      <table>
-        <tbody>
-          <tr>
-            <th>Status</th>
-            <th>Orders</th>
-            <th className="money">Sum</th>
-          </tr>
-          {data.byStatus.map((row) => (
-            <tr key={row.status}>
-              <td>
-                <span className={"status s-" + row.status}>{row.status}</span>
-              </td>
-              <td>{row.count}</td>
-              <td className="money">{money(row.total)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+  const orders = data.byStatus.reduce((sum, row) => sum + row.count, 0);
+  const booked = data.byStatus
+    .filter((row) => row.status !== "cancelled")
+    .reduce((sum, row) => sum + row.total, 0);
+  const peak = Math.max(1, ...data.byStatus.map((row) => row.count));
 
-      <h3>Low stock</h3>
-      <p className="hint">
-        Three pieces or fewer. The same yellow mark is on the product list.
-      </p>
-      {data.lowStock.length === 0 ? (
-        <p className="hint">Nothing is that low.</p>
-      ) : null}
-      <table>
-        <tbody>
-          <tr>
-            <th>Product</th>
-            <th>Category</th>
-            <th>Stock</th>
-            <th className="money">Price</th>
-          </tr>
-          {data.lowStock.map((product) => (
-            <tr key={product.id}>
-              <td>
-                <Link to={"/products/" + product.id}>{product.name}</Link>
-              </td>
-              <td>{product.category}</td>
-              <td className="low">{product.stock}</td>
-              <td className="money">{money(product.price)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </>
+  return (
+    <section className="summary">
+      <header className="sum-hero">
+        <div>
+          <p className="sum-kicker">Overview</p>
+          <h2>Summary</h2>
+          <p className="sum-lead">
+            Orders grouped by where they sit, and products with three pieces or fewer.
+          </p>
+        </div>
+        <div className="sum-figures">
+          <div>
+            <span>Booked</span>
+            <b>{money(booked)}</b>
+          </div>
+          <div>
+            <span>Orders</span>
+            <b>{orders}</b>
+          </div>
+          <div>
+            <span>To restock</span>
+            <b>{data.lowStock.length}</b>
+          </div>
+        </div>
+      </header>
+
+      {error ? <p className="flash err">{error}</p> : null}
+
+      <div className="sum-board">
+        <section className="sum-panel">
+          <h3>By status</h3>
+          <div className="sum-mix" aria-hidden="true">
+            {orders === 0 ? (
+              <span className="sum-mix-empty" />
+            ) : (
+              data.byStatus.map((row) => (
+                <span
+                  key={row.status}
+                  className={"s-" + row.status}
+                  style={{ flexGrow: row.count, minWidth: row.count ? 8 : 0 }}
+                />
+              ))
+            )}
+          </div>
+          <ul className="sum-rows">
+            {data.byStatus.map((row) => (
+              <li key={row.status} className={"sum-row s-" + row.status}>
+                <div className="sum-row-top">
+                  <span className="sum-name">{row.status}</span>
+                  <span className="sum-count">{row.count}</span>
+                </div>
+                <div className="sum-track">
+                  <span style={{ width: (row.count / peak) * 100 + "%" }} />
+                </div>
+                <span className="sum-money">{money(row.total)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="sum-panel">
+          <h3>Low stock</h3>
+          <p className="hint">The same yellow mark is on the product list.</p>
+          {data.lowStock.length === 0 ? (
+            <p className="sum-empty">Nothing is that low.</p>
+          ) : (
+            <ul className="sum-stock">
+              {data.lowStock.map((product) => (
+                <li key={product.id}>
+                  <Link to={"/products/" + product.id}>
+                    <span className={product.stock === 0 ? "sum-qty out" : "sum-qty"}>
+                      {product.stock}
+                    </span>
+                    <span className="sum-product">
+                      <b>{product.name}</b>
+                      <span>{product.category}</span>
+                    </span>
+                    <span className="sum-price">{money(product.price)}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+    </section>
   );
 }
