@@ -48,8 +48,42 @@ function deleteProduct(db, productId) {
   }
 }
 
-function listProducts(db) {
-  return db.prepare("SELECT * FROM products ORDER BY category, name").all();
+function byText(field, direction) {
+  const sign = direction === "asc" ? 1 : -1;
+  return (a, b) =>
+    sign *
+      String(a[field] || "").localeCompare(String(b[field] || ""), "en", {
+        sensitivity: "base",
+      }) || a.id - b.id;
+}
+
+function byNumber(field, direction) {
+  const sign = direction === "asc" ? 1 : -1;
+  return (a, b) => sign * (a[field] - b[field]) || a.id - b.id;
+}
+
+const PRODUCT_SORTS = {
+  "name-asc": byText("name", "asc"),
+  "name-desc": byText("name", "desc"),
+  "price-asc": byNumber("price", "asc"),
+  "price-desc": byNumber("price", "desc"),
+  "stock-asc": byNumber("stock", "asc"),
+  "stock-desc": byNumber("stock", "desc"),
+};
+
+function listProducts(db, query, category, stock, sort) {
+  let rows = db.prepare("SELECT * FROM products").all();
+  const needle = String(query || "").trim().toLowerCase();
+  if (needle) {
+    rows = rows.filter((row) =>
+      [row.name, row.category].some((part) => String(part || "").toLowerCase().includes(needle))
+    );
+  }
+  if (CATEGORIES.includes(category)) rows = rows.filter((row) => row.category === category);
+  if (stock === "low") rows = rows.filter((row) => row.stock <= 3);
+  const key = PRODUCT_SORTS[sort] ? sort : "name-asc";
+  rows.sort(PRODUCT_SORTS[key]);
+  return rows;
 }
 
 function getProduct(db, productId) {
@@ -62,5 +96,6 @@ module.exports = {
   updateProduct,
   deleteProduct,
   listProducts,
+  PRODUCT_SORTS,
   getProduct,
 };

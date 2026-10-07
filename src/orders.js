@@ -187,11 +187,39 @@ function changeStatus(db, orderId, newStatus, when, staffName) {
   run();
 }
 
+function byText(field, direction) {
+  const sign = direction === "asc" ? 1 : -1;
+  return (a, b) =>
+    sign *
+      String(a[field] || "").localeCompare(String(b[field] || ""), "en", {
+        sensitivity: "base",
+      }) || a.id - b.id;
+}
+
+function byNumber(field, direction) {
+  const sign = direction === "asc" ? 1 : -1;
+  return (a, b) => sign * (a[field] - b[field]) || a.id - b.id;
+}
+
+function statusRank(status) {
+  const index = STATUSES.indexOf(status);
+  return index === -1 ? STATUSES.length : index;
+}
+
 const SORTS = {
-  newest: (a, b) => b.created_at.localeCompare(a.created_at) || b.id - a.id,
+  "id-asc": (a, b) => a.id - b.id,
+  "id-desc": (a, b) => b.id - a.id,
   oldest: (a, b) => a.created_at.localeCompare(b.created_at) || a.id - b.id,
-  "total-desc": (a, b) => b.total - a.total || b.id - a.id,
-  "total-asc": (a, b) => a.total - b.total || a.id - b.id,
+  newest: (a, b) => b.created_at.localeCompare(a.created_at) || b.id - a.id,
+  "customer-asc": byText("customer_name", "asc"),
+  "customer-desc": byText("customer_name", "desc"),
+  "lines-asc": byNumber("positions", "asc"),
+  "lines-desc": byNumber("positions", "desc"),
+  "total-asc": byNumber("total", "asc"),
+  "total-desc": byNumber("total", "desc"),
+  // Status follows the desk path, not the alphabet: new, then confirmed, shipped, completed, cancelled.
+  "status-asc": (a, b) => statusRank(a.status) - statusRank(b.status) || a.id - b.id,
+  "status-desc": (a, b) => statusRank(b.status) - statusRank(a.status) || a.id - b.id,
 };
 
 function listOrders(db, status, query, extra) {

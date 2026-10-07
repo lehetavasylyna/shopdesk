@@ -1,12 +1,13 @@
 const express = require("express");
 const { ShopError } = require("./errors");
-const { addCustomer, customerWithOrders, listCustomers } = require("./customers");
+const { addCustomer, CUSTOMER_SORTS, customerWithOrders, listCustomers } = require("./customers");
 const {
   CATEGORIES,
   addProduct,
   deleteProduct,
   getProduct,
   listProducts,
+  PRODUCT_SORTS,
   updateProduct,
 } = require("./products");
 const {
@@ -153,7 +154,22 @@ function routes(db, options) {
   );
 
   router.get("/products", (req, res) => {
-    res.json({ products: listProducts(db), categories: CATEGORIES });
+    const query = req.query.q || "";
+    let category = req.query.category || "";
+    let stock = req.query.stock || "";
+    let sort = req.query.sort || "name-asc";
+    if (category && !CATEGORIES.includes(category)) category = "";
+    if (stock !== "low") stock = "";
+    if (!PRODUCT_SORTS[sort]) sort = "name-asc";
+    res.json({
+      products: listProducts(db, query, category, stock, sort),
+      categories: CATEGORIES,
+      sorts: Object.keys(PRODUCT_SORTS),
+      category,
+      stock,
+      query,
+      sort,
+    });
   });
 
   router.post(
@@ -192,7 +208,9 @@ function routes(db, options) {
   );
 
   router.get("/customers", (req, res) => {
-    res.json({ customers: listCustomers(db) });
+    let sort = req.query.sort || "name-asc";
+    if (!CUSTOMER_SORTS[sort]) sort = "name-asc";
+    res.json(listCustomers(db, req.query.q || "", req.query.city || "", sort));
   });
 
   router.get("/customers/:id", (req, res) => {

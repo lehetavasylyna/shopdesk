@@ -5,12 +5,42 @@ import { money, when } from "../format";
 
 const EMPTY = { status: "", q: "", from: "", to: "", sort: "newest" };
 
-const SORT_LABELS = {
-  newest: "newest first",
-  oldest: "oldest first",
-  "total-desc": "largest total",
-  "total-asc": "smallest total",
+const SORT_FIELDS = {
+  id: { asc: "id-asc", desc: "id-desc" },
+  date: { asc: "oldest", desc: "newest" },
+  customer: { asc: "customer-asc", desc: "customer-desc" },
+  lines: { asc: "lines-asc", desc: "lines-desc" },
+  total: { asc: "total-asc", desc: "total-desc" },
+  status: { asc: "status-asc", desc: "status-desc" },
 };
+
+const SORT_LABELS = {
+  "id-asc": "number, low to high",
+  "id-desc": "number, high to low",
+  oldest: "date, oldest first",
+  newest: "date, newest first",
+  "customer-asc": "customer, A to Z",
+  "customer-desc": "customer, Z to A",
+  "lines-asc": "lines, fewest first",
+  "lines-desc": "lines, most first",
+  "total-asc": "total, smallest first",
+  "total-desc": "total, largest first",
+  "status-asc": "status, new first",
+  "status-desc": "status, cancelled first",
+};
+
+function sortField(sort) {
+  for (const field of Object.keys(SORT_FIELDS)) {
+    const pair = SORT_FIELDS[field];
+    if (pair.asc === sort || pair.desc === sort) return field;
+  }
+  return "date";
+}
+
+function sortDir(sort) {
+  const pair = SORT_FIELDS[sortField(sort)];
+  return pair.asc === sort ? "asc" : "desc";
+}
 
 export default function Orders() {
   const [filters, setFilters] = useState(EMPTY);
@@ -33,6 +63,16 @@ export default function Orders() {
 
   function change(field, value) {
     load({ ...filters, [field]: value });
+  }
+
+  function onSort(field) {
+    const current = filters.sort;
+    if (sortField(current) === field) {
+      const pair = SORT_FIELDS[field];
+      change("sort", sortDir(current) === "asc" ? pair.desc : pair.asc);
+      return;
+    }
+    change("sort", SORT_FIELDS[field].asc);
   }
 
   const active =
@@ -134,15 +174,27 @@ export default function Orders() {
         <table>
           <tbody>
             <tr>
-              <th className="num">No.</th>
-              <th>Date</th>
+              <SortHead field="id" sort={filters.sort} onSort={onSort} className="num">
+                No.
+              </SortHead>
+              <SortHead field="date" sort={filters.sort} onSort={onSort}>
+                Date
+              </SortHead>
               <th>Delivery</th>
-              <th>Customer</th>
+              <SortHead field="customer" sort={filters.sort} onSort={onSort}>
+                Customer
+              </SortHead>
               <th>City</th>
               <th>Phone</th>
-              <th>Lines</th>
-              <th className="money">Total</th>
-              <th>Status</th>
+              <SortHead field="lines" sort={filters.sort} onSort={onSort}>
+                Lines
+              </SortHead>
+              <SortHead field="total" sort={filters.sort} onSort={onSort} className="money">
+                Total
+              </SortHead>
+              <SortHead field="status" sort={filters.sort} onSort={onSort}>
+                Status
+              </SortHead>
             </tr>
             {data.orders.map((order) => (
               <tr key={order.id}>
@@ -170,5 +222,25 @@ export default function Orders() {
       ) : null}
       {data && !data.orders.length ? <p>Nothing found.</p> : null}
     </>
+  );
+}
+
+function SortHead({ field, sort, onSort, className, children }) {
+  const active = sortField(sort) === field;
+  const dir = active ? sortDir(sort) : "";
+  return (
+    <th
+      className={className}
+      aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : "none"}
+    >
+      <button
+        type="button"
+        className={active ? "sort on" : "sort"}
+        onClick={() => onSort(field)}
+      >
+        {children}
+        {active ? (dir === "asc" ? " ↑" : " ↓") : ""}
+      </button>
+    </th>
   );
 }

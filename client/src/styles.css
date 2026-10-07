@@ -275,9 +275,9 @@ input[type="password"] {
 
 .sum-figures {
   display: grid;
-  grid-template-columns: repeat(3, minmax(110px, 1fr));
+  grid-template-columns: repeat(4, minmax(96px, 1fr));
   gap: 18px;
-  min-width: min(420px, 100%);
+  min-width: min(480px, 100%);
 }
 
 .sum-figures span {
@@ -466,6 +466,61 @@ input[type="password"] {
   border-radius: 12px;
 }
 
+.sum-sit {
+  padding: 8px 32px 28px;
+}
+
+.sum-sit-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+}
+
+.sum-sit-list li + li {
+  margin-top: 10px;
+}
+
+.sum-sit-list a {
+  display: grid;
+  grid-template-columns: 108px 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 12px;
+  text-decoration: none;
+  color: inherit;
+  background: #f8f3ea;
+  border-radius: 12px;
+}
+
+.sum-sit-list a:hover {
+  background: #f3e2c8;
+  color: inherit;
+}
+
+.sum-sit-time {
+  display: grid;
+  place-items: center;
+  min-height: 42px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #fde8e4;
+  color: #8d2f28;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.sum-sit-time.s-new {
+  background: #fde8e4;
+  color: #8d2f28;
+}
+
+.sum-sit-time.s-confirmed {
+  background: #e5eef5;
+  color: #24577a;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -496,6 +551,29 @@ th {
   letter-spacing: 0.03em;
   text-transform: uppercase;
   background: transparent;
+}
+
+th button.sort {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #6d645b;
+}
+
+th button.sort:hover,
+th button.sort.on {
+  background: transparent;
+  color: #3a2a22;
+}
+
+th.money button.sort {
+  width: 100%;
+  text-align: right;
 }
 
 tr:hover td {
@@ -753,6 +831,21 @@ ul.log li {
 
   .sum-board {
     padding: 22px 4px 4px;
+  }
+
+  .sum-sit {
+    padding: 8px 4px 20px;
+  }
+
+  .sum-sit-list a {
+    grid-template-columns: 1fr auto;
+  }
+
+  .sum-sit-time {
+    grid-column: 1 / -1;
+    justify-items: start;
+    min-height: 0;
+    text-align: left;
   }
 
   .sum-panel + .sum-panel {

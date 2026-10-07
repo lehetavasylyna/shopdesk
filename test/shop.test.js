@@ -5,8 +5,8 @@ const path = require("path");
 const test = require("node:test");
 const { openDb, prepare } = require("../src/db");
 const { showDate } = require("../src/time");
-const { addCustomer } = require("../src/customers");
-const { addProduct, deleteProduct, getProduct, updateProduct } = require("../src/products");
+const { addCustomer, listCustomers } = require("../src/customers");
+const { addProduct, deleteProduct, getProduct, listProducts, updateProduct } = require("../src/products");
 const { changeStatus, createOrder, getOrder, listOrders, placeOrder, updateOrder } = require("../src/orders");
 const { customerWithOrders } = require("../src/customers");
 const { summary } = require("../src/summary");
@@ -171,6 +171,44 @@ test("a date range and a total sort narrow the list", () => {
     const sorted = listOrders(database, null, "", { sort: "total-asc" });
     assert.equal(sorted[0].total, 45);
     assert.equal(sorted[1].total, 1190);
+
+    const helen = addBuyer(database, "Helen Parker", "0509998877");
+    const anna = addBuyer(database, "Anna Kovacs", "0509998866");
+    const mop = addItem(database, "Mop", 180, 8);
+    const byHelen = createOrder(
+      database,
+      helen,
+      [{ product_id: cheap, qty: 1 }],
+      "",
+      "2026-09-22 10:00:00"
+    );
+    const byAnna = createOrder(
+      database,
+      anna,
+      [
+        { product_id: cheap, qty: 1 },
+        { product_id: mop, qty: 1 },
+      ],
+      "",
+      "2026-09-23 10:00:00"
+    );
+    changeStatus(database, byAnna, "confirmed", "2026-09-23 12:00:00");
+
+    const namesAsc = listOrders(database, null, "", { sort: "customer-asc" }).map(
+      (row) => row.customer_name
+    );
+    const namesDesc = listOrders(database, null, "", { sort: "customer-desc" }).map(
+      (row) => row.customer_name
+    );
+    assert.ok(namesAsc.indexOf("Anna Kovacs") < namesAsc.indexOf("Helen Parker"));
+    assert.ok(namesDesc.indexOf("Helen Parker") < namesDesc.indexOf("Anna Kovacs"));
+    assert.ok(byHelen);
+    assert.equal(listOrders(database, null, "", { sort: "lines-desc" })[0].id, byAnna);
+    assert.equal(listOrders(database, null, "", { sort: "lines-asc" })[0].positions, 1);
+    assert.equal(listOrders(database, null, "", { sort: "id-desc" })[0].id, byAnna);
+    assert.equal(listOrders(database, null, "", { sort: "status-asc" })[0].status, "new");
+    const statusDesc = listOrders(database, null, "", { sort: "status-desc" });
+    assert.equal(statusDesc[0].status, "confirmed");
   } finally {
     database.close();
   }
@@ -475,6 +513,44 @@ test("a product must come from the list, with a whole price and a stock that is 
   }
 });
 
+test("customers and products filter by search, city, category and low stock", () => {
+  const database = tempDb(false);
+  try {
+    addCustomer(database, "Helen Parker", "0501234567", "Uzhhorod", "12 Korzo St");
+    addCustomer(database, "Mark Ellis", "0975552211", "Mukachevo", "4 Peace St");
+    addProduct(database, "Desk lamp", "Household", 650, 3);
+    addProduct(database, "Electric kettle 1.7 L", "Kitchen", 890, 8);
+
+    const helen = listCustomers(database, "helen");
+    assert.equal(helen.customers.length, 1);
+    assert.equal(helen.customers[0].name, "Helen Parker");
+    assert.equal(listCustomers(database, "555").customers[0].name, "Mark Ellis");
+    assert.equal(listCustomers(database, "korzo").customers[0].name, "Helen Parker");
+
+    const city = listCustomers(database, "", "Mukachevo");
+    assert.equal(city.customers.length, 1);
+    assert.equal(city.city, "Mukachevo");
+    assert.deepEqual(city.cities, ["Mukachevo", "Uzhhorod"]);
+    assert.equal(listCustomers(database, "", "Kyiv").customers.length, 2);
+    assert.equal(listCustomers(database, "", "", "name-asc").customers[0].name, "Helen Parker");
+    assert.equal(listCustomers(database, "", "", "name-desc").customers[0].name, "Mark Ellis");
+
+    assert.equal(listProducts(database, "LAMP").length, 1);
+    assert.equal(listProducts(database, "lamp", "Kitchen").length, 0);
+    assert.equal(listProducts(database, "", "Household", "low").length, 1);
+    assert.equal(listProducts(database, "", "", "low").length, 1);
+    assert.equal(listProducts(database, "", "Garden").length, 2);
+    assert.equal(listProducts(database, "", "", "", "name-asc")[0].name, "Desk lamp");
+    assert.equal(listProducts(database, "", "", "", "name-desc")[0].name, "Electric kettle 1.7 L");
+    assert.equal(listProducts(database, "", "", "", "price-asc")[0].price, 650);
+    assert.equal(listProducts(database, "", "", "", "price-desc")[0].price, 890);
+    assert.equal(listProducts(database, "", "", "", "stock-asc")[0].stock, 3);
+    assert.equal(listProducts(database, "", "", "", "stock-desc")[0].stock, 8);
+  } finally {
+    database.close();
+  }
+});
+
 test("an order needs a real customer, a short comment and a positive quantity", () => {
   const database = tempDb(false);
   try {
@@ -641,6 +717,64 @@ test("summary lists every status, and three left on the shelf is already low", (
       report.lowStock.map((row) => row.name),
       ["Lamp"]
     );
+    assert.deepEqual(report.attention, []);
+  } finally {
+    database.close();
+  }
+});
+
+test("attention follows the status change, not the day the order was written", () => {
+  const database = tempDb(false);
+  try {
+    const buyer = addBuyer(database);
+    const item = addItem(database, "Kettle", 890, 10);
+    const now = Date.parse("2026-10-07T12:00:00");
+    const old = createOrder(
+      database,
+      buyer,
+      [{ product_id: item, qty: 1 }],
+      "",
+      "2026-09-21 10:15:00"
+    );
+    createOrder(database, buyer, [{ product_id: item, qty: 1 }], "", "2026-10-07 11:00:00");
+    const justConfirmed = createOrder(
+      database,
+      buyer,
+      [{ product_id: item, qty: 1 }],
+      "",
+      "2026-09-20 10:00:00"
+    );
+    changeStatus(database, justConfirmed, "confirmed", "2026-10-07 11:30:00", "Shop desk");
+    const stuckConfirmed = createOrder(
+      database,
+      buyer,
+      [{ product_id: item, qty: 1 }],
+      "",
+      "2026-10-01 10:00:00"
+    );
+    changeStatus(database, stuckConfirmed, "confirmed", "2026-10-05 10:00:00", "Shop desk");
+    const shipped = createOrder(
+      database,
+      buyer,
+      [{ product_id: item, qty: 1 }],
+      "",
+      "2026-09-01 10:00:00"
+    );
+    changeStatus(database, shipped, "confirmed", "2026-09-01 11:00:00", "Shop desk");
+    changeStatus(database, shipped, "shipped", "2026-09-02 11:00:00", "Shop desk");
+
+    const report = summary(database, now);
+    assert.deepEqual(
+      report.attention.map((row) => row.id),
+      [old, stuckConfirmed]
+    );
+    assert.equal(report.attention[0].status, "new");
+    assert.equal(report.attention[0].staff_name, "");
+    assert.equal(report.attention[0].dwell_ms, now - Date.parse("2026-09-21T10:15:00"));
+    assert.equal(report.attention[1].status, "confirmed");
+    assert.equal(report.attention[1].staff_name, "Shop desk");
+    assert.equal(report.attention[1].dwell_ms, now - Date.parse("2026-10-05T10:00:00"));
+    assert.ok(!report.attention.some((row) => row.id === justConfirmed));
   } finally {
     database.close();
   }

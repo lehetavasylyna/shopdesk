@@ -49,8 +49,15 @@ export function getSummary() {
   return request("/api/summary");
 }
 
-export function getProducts() {
-  return request("/api/products");
+export function getProducts(filters) {
+  const input = filters || {};
+  const params = new URLSearchParams();
+  if (input.q) params.set("q", input.q);
+  if (input.category) params.set("category", input.category);
+  if (input.stock) params.set("stock", input.stock);
+  if (input.sort && input.sort !== "name-asc") params.set("sort", input.sort);
+  const query = params.toString();
+  return request("/api/products" + (query ? "?" + query : ""));
 }
 
 export function getProduct(id) {
@@ -69,8 +76,14 @@ export function deleteProduct(id) {
   return request("/api/products/" + id, { method: "DELETE" });
 }
 
-export function getCustomers() {
-  return request("/api/customers");
+export function getCustomers(filters) {
+  const input = filters || {};
+  const params = new URLSearchParams();
+  if (input.q) params.set("q", input.q);
+  if (input.city) params.set("city", input.city);
+  if (input.sort && input.sort !== "name-asc") params.set("sort", input.sort);
+  const query = params.toString();
+  return request("/api/customers" + (query ? "?" + query : ""));
 }
 
 export function getCustomer(id) {

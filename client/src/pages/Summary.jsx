@@ -1,7 +1,16 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getSummary } from "../api";
-import { money } from "../format";
+import { money, when } from "../format";
+
+function sitting(ms) {
+  const day = 24 * 60 * 60 * 1000;
+  const days = Math.floor(ms / day);
+  if (days >= 2) return days + " days";
+  if (days === 1) return "1 day";
+  const hours = Math.max(1, Math.floor(ms / (60 * 60 * 1000)));
+  return hours === 1 ? "1 hour" : hours + " hours";
+}
 
 export default function Summary() {
   const [data, setData] = useState(null);
@@ -34,7 +43,8 @@ export default function Summary() {
           <p className="sum-kicker">Overview</p>
           <h2>Summary</h2>
           <p className="sum-lead">
-            Orders grouped by where they sit, and products with three pieces or fewer.
+            Orders grouped by where they sit, products with three pieces or fewer, and orders
+            that have stayed in one status too long.
           </p>
         </div>
         <div className="sum-figures">
@@ -49,6 +59,10 @@ export default function Summary() {
           <div>
             <span>To restock</span>
             <b>{data.lowStock.length}</b>
+          </div>
+          <div>
+            <span>Sitting</span>
+            <b>{data.attention.length}</b>
           </div>
         </div>
       </header>
@@ -112,6 +126,37 @@ export default function Summary() {
           )}
         </section>
       </div>
+
+      <section className="sum-panel sum-sit">
+        <h3>Sitting too long</h3>
+        <p className="hint">
+          A new order appears after two days. A confirmed one appears after one day. The clock
+          starts when the status changed, not when the order was written.
+        </p>
+        {data.attention.length === 0 ? (
+          <p className="sum-empty">Nothing has been sitting past its limit.</p>
+        ) : (
+          <ul className="sum-sit-list">
+            {data.attention.map((row) => (
+              <li key={row.id}>
+                <Link to={"/orders/" + row.id}>
+                  <span className={"sum-sit-time s-" + row.status}>{sitting(row.dwell_ms)}</span>
+                  <span className="sum-product">
+                    <b>
+                      #{row.id} {row.customer_name}
+                    </b>
+                    <span>
+                      {row.status} since {when(row.since)}
+                      {row.staff_name ? " · " + row.staff_name : ""}
+                    </span>
+                  </span>
+                  <span className={"status s-" + row.status}>{row.status}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </section>
   );
 }

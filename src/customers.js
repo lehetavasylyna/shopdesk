@@ -15,8 +15,34 @@ function addCustomer(db, name, phone, city, address) {
   return Number(info.lastInsertRowid);
 }
 
-function listCustomers(db) {
-  return db.prepare("SELECT * FROM customers ORDER BY name").all();
+const CUSTOMER_SORTS = {
+  "name-asc": (a, b) =>
+    String(a.name).localeCompare(String(b.name), "en", { sensitivity: "base" }) || a.id - b.id,
+  "name-desc": (a, b) =>
+    String(b.name).localeCompare(String(a.name), "en", { sensitivity: "base" }) || a.id - b.id,
+};
+
+function listCustomers(db, query, city, sort) {
+  const all = db.prepare("SELECT * FROM customers").all();
+  const cities = [...new Set(all.map((row) => row.city))].sort((a, b) =>
+    String(a).localeCompare(String(b), "en", { sensitivity: "base" })
+  );
+  let rows = all;
+  const needle = String(query || "").trim().toLowerCase();
+  if (needle) {
+    // Same reason as the order list: SQLite lower() is unreliable for every letter.
+    rows = rows.filter((row) =>
+      [row.name, row.phone, row.city, row.address].some((part) =>
+        String(part || "").toLowerCase().includes(needle)
+      )
+    );
+  }
+  const wanted = String(city || "").trim();
+  const applied = cities.includes(wanted) ? wanted : "";
+  if (applied) rows = rows.filter((row) => row.city === applied);
+  const key = CUSTOMER_SORTS[sort] ? sort : "name-asc";
+  rows.sort(CUSTOMER_SORTS[key]);
+  return { customers: rows, cities, city: applied, query: String(query || ""), sort: key };
 }
 
 function getCustomer(db, customerId) {
@@ -38,4 +64,4 @@ function customerWithOrders(db, customerId) {
   return { customer, orders };
 }
 
-module.exports = { addCustomer, listCustomers, getCustomer, customerWithOrders };
+module.exports = { addCustomer, listCustomers, CUSTOMER_SORTS, getCustomer, customerWithOrders };
